@@ -15,3 +15,6 @@ This script is a little more complex than `map_example.py`, but not by much. The
 ## `ncrcat_files.py`  
 
 This is a command line utility that I wrote and actually use. This is an example of useing python to replace shell scripts. It takes a list of files and a list of variables and uses those along with `ncrcat` to produces a concatenated time series. I wrote this because `xarray` can be very inefficient in dealing with large datasets that have both a large number of variables and a large number of files. In practice, I use this to make compressed netCDF time series files for one or a few variables that are then more portable and easy to deal with (say on my laptop).
+
+## `wind_rose_plot_example.py`
+This script is only semi-functional. It was developed as a prototype and proof-of-concept. Takes horizontal wind components (u, v) from a data set and uses `np.arctan2` to get wind direction. Then take histogram of the directions, and plot it on a polar plot to make a wind rose. Apply sensible labels. This should be further refined and turned into a callable function or a pair of functions.
