@@ -10,6 +10,7 @@ Example applications are shown in these Notebooks.
 
 - `vertical_cross_section_example` shows how to make a vertical cross section on pressure levels.
 - `dev_metadata_decorator` is in development, but shows how one might design a decorator to a function that will preserve metadata.
+- `Regrid_with_xesmf` is an example that shows horizontal regridding using xesmf as well as simple interpolation to pressure levels that uses Numpy's `interp` along with just-in-time compilation using Numba.
 
 ## util
 
