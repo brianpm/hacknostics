@@ -18,3 +18,8 @@ This is a command line utility that I wrote and actually use. This is an example
 
 ## `wind_rose_plot_example.py`
 This script is only semi-functional. It was developed as a prototype and proof-of-concept. Takes horizontal wind components (u, v) from a data set and uses `np.arctan2` to get wind direction. Then take histogram of the directions, and plot it on a polar plot to make a wind rose. Apply sensible labels. This should be further refined and turned into a callable function or a pair of functions.
+
+## `cesm_restom.py`
+This is a command line utility that calculates the top-of-model and top-of-atmosphere net radiative balance for a CESM data set. To use it, run it with one argument that provides the location of the data. If the argument is a file, it needs to contain `FLNT` and either `FSNT`, `FSNTOA`, or both. The argument can also be a glob pattern, which can be either expanded by the shell or (if in double quotes) by using the pathlib glob functionality. In those cases, the script uses Xarray's `open_mfdataset` to open the dataset, and proceeds the same as for a single file afterward.
+
+The script calculates the global mean, time mean net radiative flux and just prints the result to standard output. If it finds both `FSNT` and `FSNTOA` it will provide both, otherwise whichever is missing will be indicated.
