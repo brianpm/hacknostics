@@ -1,0 +1,11 @@
+# variables specify as CF standard name followed by name in netcdf file
+# But what about derived variables?  -- could defer to logic in the program
+# But how to deal with different data sets?
+variables:
+  surface_temperature: "TS"
+  precipitation_flux: "PRECT"
+    scale_factor: 8640000
+    units: "mm/day"
+    recipe: "PRECC + PRECL"
+  toa_net_downward_radiative_flux: "RESTOM"
+    recipe: "FSNT - FLNT"   
