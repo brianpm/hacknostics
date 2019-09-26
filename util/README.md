@@ -2,6 +2,10 @@
 
 This directory contains some example scripts to show a few useful applications.
 
+## `xy_1.py`
+A very simple line plot. This example directly follows the NCL xy_1 example ([http://www.ncl.ucar.edu/Applications/xy.shtml]). It draws two plots, the first is totally bare-bones, so lacks some of the features of the default NCL plot. The second one adds features to try to mimic NCL (even when NCL makes bad choices). Requires python 3.6+, xarray, and matplotlib.
+
+
 ## `map_example.py`
 A fairly bare-bones script that makes a map that is not too ugly.
 
