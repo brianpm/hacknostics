@@ -9,9 +9,17 @@ A very simple line plot. This example directly follows the NCL xy_1 example ([ht
 Follows the NCL examples for multiple line plot with varying colors, thicknesses, and markers [http://www.ncl.ucar.edu/Applications/xy.shtml]. In this one, I do not try to replicate all the styling of NCL. Instead, I tried to achieve some of the same customizations in the lines, and showed a couple of ways that you could do them. I think these examples start to show how python can achieve the same level of customization in a more compact form. 
 
 ## `bar_1.py`
-STATUS: *INCOMPLETE*
-
-This is the beginning of the bar examples, following the NCL ones. Kind of messy right now.
+Examples of bar charts. These are roughly based on `bar_1.ncl` [http://www.ncl.ucar.edu/Applications/bar.shtml]. 
+- Example 1 shows a basic bar chart. 
+- Example 2 shows a step-filled chart.
+- Example 3 switches to horizontal bars, pretty much covering NCL's `bar_2.ncl`. 
+- Example 4 shows one way to achieve the coloring effect shown in NCL's `bar_3.ncl`.
+- Example 5 shows how to change the thickness of the bars (note, use the kwarg `height` for horizontal bars, but `width` for vertical bars.) 
+- Compare Example 3 and 4 to see how to change the outline color, as in `bar_4.ncl`
+- Example 6 shows how to change colors for bars, basically like `bar_6.ncl`.
+- Example 7 shows bars by category, with different colors, following `bar_7.ncl`.
+- Example 8 shows one way to do a stacked bar graph, following `bar_16.ncl`.
+- _Example 9_ approximates `bar_22.ncl`. There are 4 panels, a gray background, white gridlines, colored bars, custom xtick labels, common/shared axes, common y-axis label, individual panel titles. I point out that the NCL example is _211 LINES_ (including comments and blanks) while this example is _24 LINES_ of code. 
 
 
 ## `map_example.py`
