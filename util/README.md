@@ -5,8 +5,13 @@ This directory contains some example scripts to show a few useful applications.
 ## `xy_1.py`
 A very simple line plot. This example directly follows the NCL xy_1 example ([http://www.ncl.ucar.edu/Applications/xy.shtml]). It draws two plots, the first is totally bare-bones, so lacks some of the features of the default NCL plot. The second one adds features to try to mimic NCL (even when NCL makes bad choices). Requires python 3.6+, xarray, and matplotlib.
 
+*to run:* `> python xy_1.py`
+
 ## `xy_2.py`
 Follows the NCL examples for multiple line plot with varying colors, thicknesses, and markers [http://www.ncl.ucar.edu/Applications/xy.shtml]. In this one, I do not try to replicate all the styling of NCL. Instead, I tried to achieve some of the same customizations in the lines, and showed a couple of ways that you could do them. I think these examples start to show how python can achieve the same level of customization in a more compact form. 
+
+*to run:* `> python xy_2.py`
+
 
 ## `bar_1.py`
 Examples of bar charts. These are roughly based on `bar_1.ncl` [http://www.ncl.ucar.edu/Applications/bar.shtml]. 
@@ -20,6 +25,10 @@ Examples of bar charts. These are roughly based on `bar_1.ncl` [http://www.ncl.u
 - Example 7 shows bars by category, with different colors, following `bar_7.ncl`.
 - Example 8 shows one way to do a stacked bar graph, following `bar_16.ncl`.
 - _Example 9_ approximates `bar_22.ncl`. There are 4 panels, a gray background, white gridlines, colored bars, custom xtick labels, common/shared axes, common y-axis label, individual panel titles. I point out that the NCL example is _211 LINES_ (including comments and blanks) while this example is _24 LINES_ of code. 
+
+*to run:* 
+    - modify line `f = xr.open_dataset("/Users/brianpm/Downloads/SOI_Darwin.nc")` to point to your file [https://www.ncl.ucar.edu/Applications/Data/cdf/SOI_Darwin.nc]
+    `> python bar_1.py`
 
 
 ## `map_example.py`
