@@ -36,6 +36,15 @@ Examples of bar charts. These are roughly based on `bar_1.ncl` [http://www.ncl.u
 
     `> python bar_1.py`
 
+## `ave_1.py`
+Simple example of doing global average and plotting time series.
+
+## `climo_1.py`
+
+Reads a dataset, takes a 3-month moving average, computes seasonal climatology, tests significance of difference between 1970s and 1990s climates, and plots the result. Plot shows drawing a map with filled continents, contour lines (with effects), and stippled significance contours. Demonstrates how to do t-test with scipy. Demonstrates adding cyclic point to data. Shows how to get index of a value, but then how you do not need to actually use it. Uses both mean and standard deviation from xarray. Defines two simple functions that can control contour line style. Shows how to use cartopy to get latitude and longitude tick labels. 
+
+## `climo_4.py`
+Reads a dataset, processes integer time values (YYMM) to proper datetime objects, calculates climatology and zonal mean. Defines a custom colormap. Specifies contour levels. Customizes tick marks and text labels.  
 
 ## `map_example.py`
 A fairly bare-bones script that makes a map that is not too ugly.
