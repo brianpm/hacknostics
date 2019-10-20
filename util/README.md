@@ -68,6 +68,9 @@ Covers basic streamlines plots using matplotlib's streamplot function. Compare w
 ## `gsn_xy.py`
 Simple line graphs based on the gsn_xy examples: [http://www.ncl.ucar.edu/Applications/generic_xy.shtml]
 
+## `latlon_subset.py`
+This is the first set of geographic subsetting examples from [https://www.ncl.ucar.edu/Applications/latlon_subset.shtml]. Shows how to start from a global data set and pull out a lat-lon region and make a map. Shades land. Shows simple example of making a function to automatically add titles. Shows simple grid lines. Demonstrates adding some markers to the plot. Includes an example of how to implement `lonFlip` in python/xarray to convert longitude values on a global grid (0-360 <=> -180-180).
+
 ## `simplest_comparison_map.py`
 
 This script is a little more complex than `map_example.py`, but not by much. The main thing is that this one does use an input from the command line. The command line is parsed using the `argparse` package, which is part of the standard library in python. The argument should be in the form `-f filename.json`, providing a JSON file that will be used to drive the script. This is essentially like making a configuration file that will be fed into the script. The user provides the essential information in this JSON file, and the script does what it needs to. The JSON file looks basically like a python dictionary, and in this case it needs to have entries that give two netCDF file paths, two variables to use, and a place to put the output plot (see the `assert` statements). It can optionally include `slice` definitions to select temporal subsets of the datasets. 
