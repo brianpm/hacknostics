@@ -56,6 +56,17 @@ At the bottom of the script we find the `if __name__ == "__main__"` block that r
 
 This goes through all the boxplot examples from NCL's example page. The functionality is somewhat different, but graphically these show similar effects. The last one is not really a box plot, and I show how to draw a violin plot.
 
+## `vector.py`
+Covers basic vector plots. Compare with NCL examples at [http://www.ncl.ucar.edu/Applications/generic_vector.shtml].
+
+## `vector_scalar.py`
+Covers putting vectors and scalars on same plot. Compare with NCL examples at [http://www.ncl.ucar.edu/Applications/generic_vecscal.shtml].
+
+## `streamlines.py`
+Covers basic streamlines plots using matplotlib's streamplot function. Compare with examples at [http://www.ncl.ucar.edu/Applications/generic_stream.shtml].
+
+## `gsn_xy.py`
+Simple line graphs based on the gsn_xy examples: [http://www.ncl.ucar.edu/Applications/generic_xy.shtml]
 
 ## `simplest_comparison_map.py`
 
