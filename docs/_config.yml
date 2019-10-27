@@ -29,7 +29,7 @@ twitter_username:
 github_username:  brianpm
 
 # Build settings
-theme: minima
+theme: jekyll-theme-midnight
 plugins:
   - jekyll-feed
 
