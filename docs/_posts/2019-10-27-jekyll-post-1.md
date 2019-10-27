@@ -1,5 +1,5 @@
 ---
-layout: post
+layout: default
 title: jekyll posting tests
 tags: [ruby, blogging, tests]
 ---
