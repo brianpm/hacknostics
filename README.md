@@ -4,6 +4,9 @@ Some atmospheric diagnostics, focused on analysis of CESM.
 
 The repo is organized into Notebooks, utilities (`util`), and notes (`docs`). 
 
+## Examples
+This is now the main feature of hacknostics. Included are both Notebooks and python scripts. These are recreating many of the NCL examples. Specifically using minimal packages; focused on numpy, xarray, matplotlib, and cartopy. Lots of notes and comments about what works well and what doesn't. These examples try to keep the basic style of the NCL examples to the extent possible.
+
 ## Notebooks
 
 Example applications are shown in these Notebooks.
