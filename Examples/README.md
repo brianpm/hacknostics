@@ -81,3 +81,6 @@ Based on `gsn_contour_*.ncl` from the NCL examples. These show basic contour plo
 ## `maps_and_shapefiles.ipynb` 
 
 ## `polarstereographic.ipynb`
+
+## `Scatter_Plots.ipynb`
+Goes through most of the NCL scatter plot examples. Shows how to customize scatter plots, use polar coordinates, markers on maps, rolling means, polynomial curve fitting, etc. Compare with [http://www.ncl.ucar.edu/Applications/scatter.shtml].
