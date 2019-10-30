@@ -84,3 +84,10 @@ Based on `gsn_contour_*.ncl` from the NCL examples. These show basic contour plo
 
 ## `Scatter_Plots.ipynb`
 Goes through most of the NCL scatter plot examples. Shows how to customize scatter plots, use polar coordinates, markers on maps, rolling means, polynomial curve fitting, etc. Compare with [http://www.ncl.ucar.edu/Applications/scatter.shtml].
+
+## `indices_nino_1.ipynb`
+Calculate NINO3.4 index from SST data. Use specified base period for climatology; calculate climatology and anomalies. Average, standardize, and smooth the index. Plot anomalies and standardized anomalies as time series; shade above/below zero in different colors.
+
+## `indices_oni_1.ipynb`
+Calculate the Oceanic Nino Index (ONI) from the same SST data as in `indices_nino_1.ipynb`. Do similar manipulation and time series plot. Then make a table showing the monthly values for many years; color table cells based on value.
+_I notice that my table and the NCL example seem to be off by 1-month. I have not been able to identify the cause of the mismatch._
