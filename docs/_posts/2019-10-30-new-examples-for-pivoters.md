@@ -1,7 +1,8 @@
 ---
 layout: post
+author: brianpm
 title:  "New Examples for Pivoters"
-date:   2019-10-30 01:00:00 -0600
+date:   2019-10-30 01:00:00
 categories: update, NCL, python, pivot
 ---
 
