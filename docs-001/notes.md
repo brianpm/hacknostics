@@ -1,1 +1,0 @@
-These are notes about the notebooks in hacknostics.
