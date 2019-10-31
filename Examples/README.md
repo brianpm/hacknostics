@@ -91,3 +91,6 @@ Calculate NINO3.4 index from SST data. Use specified base period for climatology
 ## `indices_oni_1.ipynb`
 Calculate the Oceanic Nino Index (ONI) from the same SST data as in `indices_nino_1.ipynb`. Do similar manipulation and time series plot. Then make a table showing the monthly values for many years; color table cells based on value.
 _I notice that my table and the NCL example seem to be off by 1-month. I have not been able to identify the cause of the mismatch._
+
+## `filters_1.ipynb`
+Shows temporal smoothing using a weighted rolling average. Three equivalent methods are shown, one with just xarray and two with just numpy. For the numpy versions, also shows how to copy metadata.
