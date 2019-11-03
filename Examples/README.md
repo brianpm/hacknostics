@@ -97,3 +97,6 @@ Shows temporal smoothing using a weighted rolling average. Three equivalent meth
 
 ## `filters_2.ipynb`
 Shows an implementation of Lanczos weights for low-pass filter. Also shows an example of named tuples and dictionary comprehensions to make the code compact and keep labels and data together for the plot. As an aside, also has two options for dealing with non-CF-compliant time dimension units of "months since <month> YYYY". 
+
+## `interp1d_examples.ipynb`
+Demonstrates how to do simple 1-dimensional interpolation. Mostly using SciPy's interpolate module, and mostly using B-splines (mostly cubic). Compare with least squares and linear interpolation.
