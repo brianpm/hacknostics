@@ -74,6 +74,10 @@ Simple line graphs based on the gsn_xy examples: [http://www.ncl.ucar.edu/Applic
 ## `latlon_subset.py`
 This is the first set of geographic subsetting examples from [https://www.ncl.ucar.edu/Applications/latlon_subset.shtml]. Shows how to start from a global data set and pull out a lat-lon region and make a map. Shades land. Shows simple example of making a function to automatically add titles. Shows simple grid lines. Demonstrates adding some markers to the plot. Includes an example of how to implement `lonFlip` in python/xarray to convert longitude values on a global grid (0-360 <=> -180-180).
 
+## `wind_1.py`
+Uses package `windspharm` to calculate divergent and rotational wind components.
+![Quiver plots of wind components.](Figures/wind_1.png)
+
 # Notebooks Content
 ## `generic_contours.ipynb`    
 Based on `gsn_contour_*.ncl` from the NCL examples. These show basic contour plots. Most of the interesting things are actually to do with customizing the colorbar and fonts.
