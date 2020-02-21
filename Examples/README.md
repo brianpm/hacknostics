@@ -78,6 +78,10 @@ This is the first set of geographic subsetting examples from [https://www.ncl.uc
 Uses package `windspharm` to calculate divergent and rotational wind components.
 ![Quiver plots of wind components.](Figures/wind_1.png)
 
+## `wind_3.py`
+Uses package `windspharm` to calculate velocity potential and streamfunction.
+![Qiver plots of wind potentials.](Figures/wind_3.png)
+
 # Notebooks Content
 ## `generic_contours.ipynb`    
 Based on `gsn_contour_*.ncl` from the NCL examples. These show basic contour plots. Most of the interesting things are actually to do with customizing the colorbar and fonts.
