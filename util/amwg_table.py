@@ -1,12 +1,37 @@
-#
-
+#! /usr/bin/env python
+import argparse
 from pathlib import Path
+import numpy as np
+import pandas as pd
 import xarray as xr
+import scipy.stats as stats  # for easy linear regression and testing
 
-# goal: replace the "Tables" set in AMWG
+# GOAL: replace the "Tables" set in AMWG
 #	Set Description
 #   1 Tables of ANN, DJF, JJA, global and regional means and RMSE.
+#
+# STRATEGY:
+# I think the right solution is to generate one CSV (or other?) file that
+# contains all of the data.
+# So we need:
+# - a function that would produces the data, and 
+# - then call a function that adds the data to a file
+# - another function(module?) that uses the file to produce a "web page"
 
+# IMPLEMENTATION:
+# - assume that we will have time series of global averages already ... that should be done ahead of time
+# - given a variable or file for a variable (equivalent), we will calculate the all-time, DJF, JJA, MAM, SON
+#   + mean
+#   + standard error of the mean
+#     -- 95% confidence interval for the mean, estimated by:
+#     ---- CI95 = mean + (SE * 1.96)
+#     ---- CI05 = mean - (SE * 1.96)
+#   + standard deviation
+# AMWG also includes the RMSE b/c it is comparing two things, but I will put that off for now.
+
+# DETAIL: we use python's type hinting as much as possible
+
+# in future, provide option to do multiple domains
 # They use 4 pre-defined domains:
 domains = {"global": (0, 360, -90, 90),
            "tropics": (0, 360, -20, 20),
@@ -15,108 +40,112 @@ domains = {"global": (0, 360, -90, 90),
 
 # and then in time it is DJF JJA ANN
 
-
 # within each domain and season
 # the result is just a table of
 # VARIABLE-NAME, RUN VALUE, OBS VALUE, RUN-OBS, RMSE
 
-def get_domain_subset(data, domain):
-	# domain: Tuple: (west, east, south, north)
-	# if domain is global, don't worry about it
-	if domain[0] == 0 and domain[1] == 360:
-		lon_global = True
-	else:
-		lon_global = False
-	if domain[2] == -90 and domain[3] == 90:
-	    lat_global = True
-	else:
-	    lat_global = False
-	if lon_global and lat_global:
-		return data  # don't do anything
-	if lon_global:
-		return data.sel(lat=slice(domain[2],domain[3]))
-	if lat_global:
-		return data.sel(lon=slice(domain[0],domain[1]))
-	# if we get to here, then it must have lat and lon specified 
-	return data.sel(lat=slice(domain[2],domain[3]), lon=slice(domain[0],domain[1]))
+def main(inargs : dict):
+    """Main function goes through series of steps:
+    - uses inargs['File'] and inargs['Variable'] load the data
+    - Determine whether there are spatial dims; if yes, do global average (TODO: regional option)
+    - Apply annual average (TODO: add seasonal here)
+    - calculates the statistics
+      + mean
+      + sample size
+      + standard deviation
+      + standard error of the mean
+      + 5/95% confidence interval of the mean
+      + linear trend
+      + p-value of linear trend
+    - puts statistics into a CSV file
+    - generates simple HTML that can display the data
+    """
+    data = _load_data(inargs.File, inargs.Variable)
+    if hasattr(data, 'units'):
+        unit_str = data.units
+    else:
+        unit_str = '--'
+    # we should check if we need to do area averaging:
+    if len(data.dims) > 1:
+        # flags that we have spatial dimensions
+        # Note: that could be 'lev' which should trigger different behavior
+        # Note: we should be able to handle (lat, lon) or (ncol,) cases, at least
+        data = _spatial_average(data)  # changes data "in place"
+    # In order to get correct statistics, average to annual or seasonal
+    data = data.groupby('time.year').mean(dim='time') # this should be fast b/c time series should be in memory
+                                                      # NOTE: data will now have a 'year' dimension instead of 'time'
+    # Now that data is (time,), we can do our simple stats:
+    data_mean = data.mean()
+    data_sample = len(data)
+    data_std = data.std()
+    data_sem = data_std / data_sample
+    data_ci = data_sem * 1.96  # https://en.wikipedia.org/wiki/Standard_error
+    data_trend = stats.linregress(data.year, data.values)
+    # These get written to our output file:
+    # create a dataframe:
+    cols = ['variable', 'unit', 'mean', 'sample size', 'standard dev.', 'standard error', '95% CI', 'trend', 'trend p-value']
+    row_values = [inargs.Variable, unit_str, data_mean.data.item(), data_sample, data_std.data.item(), data_sem.data.item(), data_ci.data.item(), 
+    f'{data_trend.intercept : 0.3f} + {data_trend.slope : 0.3f} t', data_trend.pvalue]
+    dfentries = {c:[row_values[i]] for i,c in enumerate(cols)}
+    df = pd.DataFrame(dfentries)
+    print(df)
+    # check if the output file exists:
+    ofil = Path(inargs.Output)
+    if ofil.is_file():
+        df.to_csv(ofil, mode='a', header=False, index=False)
+    else:
+        df.to_csv(ofil, header=cols, index=False)
+    # last step is to write the html file; overwrites previous version since we're supposed to be adding to it
+    _write_html(ofil, Path(inargs.TableFile))
 
 
-def get_season_average(data):
-	# this is super easy as long as we've got xarray and correct time coordinate.
-	# NOTE 1: that this doesn't properly weight by different lengths of months.
-    # NOTE 2: this returns "DJF", "JJA", "MAM", "SON" for dim 'season'
-	return data.groupby("time.season").mean(dim='time')
+def _load_data(dataloc : str, varname : str) -> xr.DataArray:
+    ds = xr.open_dataset(dataloc)
+    return ds[varname]
 
 
-def weighted_mean(x):
-	# here we assume that the input has ("lat","lon") coordinates attached
-	w = np.cos(np.radians(x['lat']))
-	# normalized weights:
-    wnorm = w / w.sum()
-    a0 = x.mean(dim='lon')
-	return (x * wnorm).sum(dim='lat')
+def _spatial_average(indata : xr.DataArray) -> xr.DataArray:
+    assert 'lev' not in indata.coords
+    assert 'ilev' not in indata.coords
+    if 'lat' in indata.coords:
+        weights = np.cos(np.deg2rad(indata.lat))
+        weights.name = "weights"
+    elif 'ncol' in indata.coords:
+        print("WARNING: We need a way to get area variable. Using equal weights.")
+        weights = xr.DataArray(1.)
+        weights.name = "weights"
+    else:
+        weights = xr.DataArray(1.)
+        weights.name = "weights"
+    weighted = indata.weighted(weights)
+    # we want to average over all non-time dimensions
+    avgdims = [dim for dim in indata.dims if dim != 'time']
+    return weighted.mean(dim=avgdims)
+    
 
+def _write_html(f : Path, out : Path):
+    print(out)
+    print(type(out))
+    df = pd.read_csv(f)
+    print(df)
+    html = df.to_html(index=False, border=1, justify='center', float_format='{:,.3f}'.format)  # should return string
+    preamble = f"""<html><head></head><body><h1>{f.stem}<h1>"""
+    ending = """</body></html>"""
+    with open(out, 'w') as hfil:
+        hfil.write(preamble)
+        hfil.write(html)
+        hfil.write(ending)
+    
 
-def get_rmse(data1, data2):
-	# Assume that data1 and data2 are same size.
-	# Do it correctly by calculating the average correctly.
-	# We ignore time here; this is a measure of pattern difference.
-	return np.sqrt((weighted_mean(data2 - data1))**2)
-
-
-def construct_row(a, b):
-	value_a = weighted_mean(a)
-	value_b = weighted_mean(b)
-	bias = value_b - value_a
-	rmse = get_rmse(a, b)
-	return variable, value_a, value_b, bias, rmse
-
-
-def _work(a, b):
-	# this assumes nice interval (jan-dec)
-	if 'time' in a.dims:
-		a_avg = a.mean(dim='time')
-	else:
-		a_avg = a
-	if 'time' in b.dims:
-		b_avg = b.mean(dim='time')
-	else:
-		b_avg = b
-	a_seasons = get_season_average(a)
-	b_seasons = get_season_average(b)
-	# this needs changing, but just to mock out:
-	table = {s: construct_row(a_seasons.sel(season=s), b_season.sel(season=s)) for s in ["DJF", "JJA", "MAM", "SON"]}
-	table["all"] = construct_row(a_avg, b_avg)
-	return table
-
-
-def _loop(a, b):
-	for d in domains:
-		aa = get_domain_subset(a, d)
-		bb = get_domain_subset(b, d)
-		return _work(aa, bb)
-
-
-
+#
+# --- okay, now just have the CLI stuff:
+#
 if __name__ == "__main__":
-	data_directory = Path("/Users/brianpm/Dropbox/Data/CERES")
-	obs_ds = xr.open_dataset(data_directory/"CERES_EBAF-TOA_Edition4.0_200003-201810.nc")
-
-	model_directory = Path("")
-	model_fils = model_directory.glob("b.e21.B1850.f09_g17.CMIP6-piControl.001.cam.h0.*.100001-109912.ncra.nc")
-	model_ds = xr.open_mfdataset(model_fils, combine='by_coords')
-	#
-	# Once we have data, we need to know what to do with it.
-	#
-	variables_to_process = [] # this should be passed in
-	for variable in variables_to_process:
-		v1, v2 = get_variable_data(ds1, ds2, variable)
-		result = _loop(v1, v2)
-		# what do we do with the result? 
-		# ...
-	#     get the variable out of each data set
-	#         ===>>> some variables are derived -> need a way to specify the calculation
-	#         ===>>> optionally check on units and grid
-	#     run the loop => table with answer for each season
-
+    parser = argparse.ArgumentParser(description='Generate global mean diagnostics table entry.')
+    parser.add_argument('File', type=Path, help='path of file')
+    parser.add_argument('Variable', type=str, help='Variable name within File')
+    parser.add_argument('Output', type=Path, help='write output to this file')
+    parser.add_argument('TableFile', type=Path, help='the HTML file')
+    args = parser.parse_args()
+    main(args)
 
