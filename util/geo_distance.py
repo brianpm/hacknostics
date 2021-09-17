@@ -10,7 +10,7 @@ def get_centroid(in_lat, in_lon):
        in_lat :: list or array of latitudes in DEGREES.
        in_lon :: list or array of longitudes in DEGREES.
        
-       return :: tuple (lat, lon) of the centroid
+       return :: tuple (lat, lon) of the centroid in DEGREES
     """
     assert len(in_lat) == len(in_lon)
     if isinstance(in_lat, list):
@@ -31,7 +31,7 @@ def get_centroid(in_lat, in_lon):
     ctr_lon = np.arctan2(yctr, xctr)
     hyp = np.sqrt(xctr**2 + yctr**2)
     ctr_lat = np.arctan2(zctr, hyp)
-    return ctr_lat, ctr_lon
+    return np.degrees(ctr_lat), np.degrees(ctr_lon)
 
 
 #
