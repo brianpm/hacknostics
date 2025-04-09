@@ -1,6 +1,8 @@
 
 .DS_Store
 
+PET0.ESMF_LogFile
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
