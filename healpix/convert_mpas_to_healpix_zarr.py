@@ -1,4 +1,6 @@
 import sys
+import os
+import shutil
 from pathlib import Path
 
 import numpy as np
@@ -15,8 +17,6 @@ import dask
 import dask.array as da
 
 import zarr
-
-import shutil
 
 # notes
 # -----
@@ -38,6 +38,22 @@ print(f"EasyGems doesn't provide a version attribute.")
 
 def main():
 
+    # output location
+    # oloc = Path("/glade/derecho/scratch/brianpm/healpix")
+    oloc = Path("/glade/derecho/scratch/digital-earths-hackathon/mpas_DYAMOND3/v2")
+
+
+    # resubmit file (for pbs)(expecting an environment variable)
+    resubmit_file = Path(os.getenv('RESUBMIT_FILE', oloc / "non_resubmit_file.txt"))
+    if resubmit_file is None:
+        raise ValueError("RESUBMIT_FILE environment variable not set.")
+    # resubmit file (for pbs)
+    if not resubmit_file.is_file():
+        # If resubmit doesn't exist, create it with initial value
+        with open(resubmit_file, "w") as f:
+            f.write("TRUE")
+            print(f"Resubmit file created: {str(resubmit_file)}")
+
     # SET NECESSARY INPUT AND OUTPUT PATHS
 
     # dataloc = Path("/glade/campaign/mmm/wmr/skamaroc/NSC_2023/3.75km_simulation_output_save")
@@ -46,28 +62,27 @@ def main():
 
     dataloc = Path("/glade/campaign/mmm/wmr/skamaroc/NSC_2023/3.75km_simulation_output_old_transport")
 
-    # all 3hr files:
+    # 3hr files:
     # datafils = sorted(dataloc.glob("DYAMOND_diag_3h.3.75km.*.nc")) # note: 70GB per file
 
-    # subset of 1hr files:
+    # 1hr files:
     datafils = sorted(dataloc.glob("DYAMOND_diag_1h.3.75km.*.nc")) # note: 4.4GB per file
 
     print(f"Identified {len(datafils)} files to remap to healpix and save to zarr.")
+
+    print("TEST TEST TEST -- SHORTEN datafils to 1")
+    datafils = [datafils[0],]
 
     # mesh description (maybe)
     meshloc = Path("/glade/campaign/mmm/wmr/skamaroc/NSC_2023")
     meshfil = meshloc / "x1.41943042.static.nc"
 
-    # output location
-    # oloc = Path("/glade/derecho/scratch/brianpm/healpix")
-    oloc = Path("/glade/derecho/scratch/digital-earths-hackathon/mpas_DYAMOND3/1hr")
-
     # Set parameters needed for generation weights:
     zoom = order = 10
 
-    weights_file = oloc / f"mpas_to_healpix_weights_order{zoom}.nc"
+    weights_file = oloc / f"mpas_to_healpix_weights_order{zoom}_wrap4.nc"
 
-    vert_weights_file = oloc / f"mpas_to_healpix_vertex_weights_order{zoom}.nc"
+    vert_weights_file = oloc / f"mpas_to_healpix_vertex_weights_order{zoom}_wrap4.nc"
 
     out_prefix = "DYAMOND_diag_1h"
 
@@ -79,23 +94,17 @@ def main():
     tracking_file = oloc / f"{out_prefix}_processed_files.txt"
     processed_files = get_processed_files(tracking_file)
 
-    # resubmit file (for pbs)
-    resubmit_file = oloc / f"resubmit.txt"
-    if not resubmit_file.is_file():
-        # If resubmit doesn't exist, create it with initial value
-        with open(resubmit_file, "w") as f:
-            f.write("TRUE")
-    
     # mpas_to_hp_zarr(ds_mpas_clean, ds_static, zoom, weights_file, vert_weights_file, oloc, out_prefix, clobber_wgts=False, clobber_zarr=True)
 
     # cell-center
     ds_static = xr.open_dataset(meshfil)
-    lon, lat = get_mpas_lonlat(ds_static, 'lonCell', 'latCell', degrees=True, negative=True, verbose=True)
-    vlon, vlat = get_mpas_lonlat(ds_static, 'lonVertex', 'latVertex', degrees=True, negative=True, verbose=True)
+    lon, lat = get_mpas_lonlat(ds_static, 'lonCell', 'latCell', degrees=True, negative=False, verbose=True, wraparound=False)
+    vlon, vlat = get_mpas_lonlat(ds_static, 'lonVertex', 'latVertex', degrees=True, negative=False, verbose=True, wraparound=False)
 
     # generate or load weights
-    eweights = get_weights_to_healpix(lon, lat, zoom, weights_file, overwrite=overwrite_weights)
-    evweights = get_weights_to_healpix(vlon, vlat, zoom, vert_weights_file, overwrite=overwrite_weights) # not needed for DYAMOND_diag_3h files
+    wfunc = get_weights_to_healpix_optimized # otherwise get_weights_to_healpix
+    eweights = wfunc(lon, lat, zoom, weights_file, overwrite=overwrite_weights)
+    evweights = wfunc(vlon, vlat, zoom, vert_weights_file, overwrite=overwrite_weights) # not needed for DYAMOND_diag_3h files
 
     for i, fil in enumerate(datafils):
         if str(fil) in processed_files:
@@ -131,6 +140,17 @@ def main():
 
         # having processed a file, end here:
         break
+
+    # Do another check to see if we should resubmit
+    # Resubmit FALSE if all datafils have been processed
+    with open(tracking_file, 'r') as f:
+        tracked_files = set(line.strip() for line in f)
+    if len(tracked_files) == len(datafils):
+        with open(resubmit_file, 'w') as f:
+            f.write("FALSE")
+        print("All files processed. Resubmit set to FALSE.")
+    else:
+        print("Not all files processed. Resubmit set to TRUE.")
 
 def pre_proc_mpas_file(datafil, meshfil):
     ds_mpas = xr.open_dataset(datafil, engine='netcdf4',  chunks={'Time': 'auto'})
@@ -195,7 +215,7 @@ def remove_directory(inpath):
         print(f"Directory not found: {path}")
 
 
-def get_mpas_lonlat(ds, lonname, latname, degrees=True, negative=True, verbose=False):
+def get_mpas_lonlat(ds, lonname, latname, degrees=True, negative=True, verbose=False, wraparound=True):
     '''Get latitude and longitude from MPAS "static" file,
        convert to degrees (default),
        convert to [-180, 180] convention (default)
@@ -239,9 +259,28 @@ def get_mpas_lonlat(ds, lonname, latname, degrees=True, negative=True, verbose=F
     else:
         if lon.min().item() < 0:
             lon += 180
+    result = (lon, lat)
+
+    # wraparound if we need to add periodic points
+    # note: this shouldn't be necessary when using
+    # the updated `get_weights_to_healpix` with hstack.
+    if wraparound:
+        orig_size = len(lon)
+        lon_wrap = xr.concat([lon, lon], dim=lon.dims[0])
+        lon_wrap[orig_size:] = lon+360
+        orig_size = len(lat)
+        lat_wrap = xr.concat([lat, lat], dim=lat.dims[0])
+        if negative:
+            if lon_wrap.max().item() >= 180:
+                lon_wrap=(lon_wrap + 180) % 720 - 180
+        else:
+            if lon.min().item() < 0:
+                lon += 180
+        result = (lon, lat, lon_wrap, lat_wrap)            
+
     if verbose:
         print(f"[final] Lat min/max: {lat.min().item()}, {lat.max().item()}, Lon min/max: {lon.min().item()},{lon.max().item()}")
-    return lon, lat
+    return result
 
 
 def get_weights_to_healpix(lon, lat, order, weights_file, overwrite=None):
@@ -272,28 +311,193 @@ def get_weights_to_healpix(lon, lat, order, weights_file, overwrite=None):
         # latlon: If True, input angles are assumed to be longitude and latitude in degree, otherwise, they are co-latitude and longitude in radians.
         hp_lon, hp_lat = hp.pix2ang(nside=nside, ipix=np.arange(npix), lonlat=latlon, nest=True)
 
-        # WE NEED TO SHIFT LONGITUDE TO [-180,180] CONVENTION
-        # Probably only if source does??
-        if latlon and np.any(hp_lon > 180):
-            hp_lon = (hp_lon + 180) % 360 - 180  # [-180, 180)
-            hp_lon += 360 / (4 * nside) / 4  # shift quarter-width  ##???????##
-            # source lon shift already applied using get_mpas_lonlat
-        else:
-            print(f"Will not modify hp_lon. Min/Max: {hp_lon.min().item()}, {hp_lon.max().item()} Size: {hp_lon.shape}")
+        # # WE NEED TO SHIFT LONGITUDE TO [-180,180] CONVENTION
+        # # Probably only if source does??
+        # if latlon and np.any(hp_lon > 180):
+        #     hp_lon = (hp_lon + 180) % 360 - 180  # [-180, 180)
+        #     hp_lon += 360 / (4 * nside) / 4  # shift quarter-width  ##???????##
+        #     # source lon shift already applied using get_mpas_lonlat
+        # else:
+        #     print(f"Will not modify hp_lon. Min/Max: {hp_lon.min().item()}, {hp_lon.max().item()} Size: {hp_lon.shape}")
+
+        # Ensure lon is periodic by stacking 3 copies:
+        lon_periodic = np.hstack((lon - 360, lon, lon + 360))
+        lat_periodic = np.hstack((lat, lat, lat))
 
         # easygems weight generation
         # If latlon=True above, then we probably want source in degrees
-        eweights = egr.compute_weights_delaunay((lon, lat),(hp_lon, hp_lat))
+        eweights = egr.compute_weights_delaunay((lon_periodic, lat_periodic),(hp_lon, hp_lat))
+        # Remap the source indices back to their valid range
+        eweights = eweights.assign(src_idx=eweights.src_idx % lat.size)
 
         # save the calculated weights for future use    
         eweights.to_netcdf(weights_file)
         print(f"Weights file written: {weights_file.name}")
         return eweights
-    else: 
-        return xr.open_dataset(weights_file) 
+    else:
+        return xr.open_dataset(weights_file)
 
     # NOTE: write=True takes a while: ~9min
 
+
+def get_weights_to_healpix_optimized(lon, lat, order, weights_file, overwrite=None):
+    # Convert input arrays to float32 if they aren't already
+    lon = lon.astype(np.float32)
+    lat = lat.astype(np.float32)
+    
+    # Basic setup
+    zoom = order
+    nside = hp.order2nside(order)
+    npix = hp.nside2npix(nside)
+    
+    # Check if we need to write a new file
+    write = False
+    if weights_file.is_file():
+        if overwrite:
+            write = True
+            weights_file.unlink()
+            print("Overwrite existing file.")
+    else:
+        write = True
+    
+    latlon = True
+    print(f"The number of pixels is {npix}, based on {nside} = 2**{zoom}. WRITE: {write}. LATLON: {latlon}")
+    
+    if not write:
+        return xr.open_dataset(weights_file)
+    
+    # Get HEALPix grid points
+    hp_lon, hp_lat = hp.pix2ang(nside=nside, ipix=np.arange(npix), lonlat=latlon, nest=True)
+    
+    # Process in chunks based on latitude bands
+    chunk_size = 10  # degrees of latitude per chunk
+    lat_chunks = np.arange(-90, 91, chunk_size)
+    
+    # Initialize lists to store combined results
+    all_src_idx = []
+    all_weights = []
+    all_valid = []
+    all_tgt_idx = []
+    
+    for i in range(len(lat_chunks) - 1):
+        lat_min, lat_max = lat_chunks[i], lat_chunks[i+1]
+        
+        # Get HEALPix points in this latitude band
+        mask_hp = (hp_lat >= lat_min) & (hp_lat < lat_max)
+        if not np.any(mask_hp):
+            continue
+            
+        hp_lon_chunk = hp_lon[mask_hp]
+        hp_lat_chunk = hp_lat[mask_hp]
+        hp_idx_chunk = np.arange(npix)[mask_hp]
+        
+        # Get source points that could influence this latitude band
+        # Add a buffer zone
+        buffer = 2.0  # degrees
+        mask_src = (lat >= lat_min - buffer) & (lat <= lat_max + buffer)
+        
+        if not np.any(mask_src):
+            continue
+            
+        src_lon_chunk = lon[mask_src]
+        src_lat_chunk = lat[mask_src]
+        src_idx_chunk = np.arange(len(lat))[mask_src]
+        
+        # Handle periodicity only for points near the boundaries
+        lon_buffer = 5.0  # degrees
+        near_0 = src_lon_chunk <= lon_buffer
+        near_360 = src_lon_chunk >= (360 - lon_buffer)
+        
+        # Only duplicate the boundary points
+        lon_periodic = np.hstack((
+            src_lon_chunk[near_360] - 360,
+            src_lon_chunk,
+            src_lon_chunk[near_0] + 360
+        ))
+        
+        lat_periodic = np.hstack((
+            src_lat_chunk[near_360],
+            src_lat_chunk,
+            src_lat_chunk[near_0]
+        ))
+        
+        # Create mapping array from periodic indices to original indices
+        periodic_to_original = np.hstack((
+            src_idx_chunk[near_360],
+            src_idx_chunk,
+            src_idx_chunk[near_0]
+        ))
+        
+        print(f"Processing latitude band {lat_min} to {lat_max}")
+        print(f"Target points: {len(hp_lon_chunk)}")
+        print(f"Source points in band: {len(src_lon_chunk)}")
+        print(f"Total periodic points: {len(lon_periodic)}")
+        
+        try:
+            # Compute weights for this chunk
+            chunk_result = egr.compute_weights_delaunay(
+                (lon_periodic, lat_periodic),
+                (hp_lon_chunk, hp_lat_chunk)
+            )
+            
+            # Remap the source indices to the original dataset
+            # Get the src_idx array with shape (tgt_idx, tri)
+            src_indices = chunk_result.src_idx.values
+            
+            # Map each source index through the periodic_to_original array
+            # This converts from indices in the periodic array to original indices
+            remapped_src_indices = periodic_to_original[src_indices]
+            
+            # Store the results with the global target indices
+            all_src_idx.append(remapped_src_indices)
+            all_weights.append(chunk_result.weights.values)
+            all_valid.append(chunk_result.valid.values)
+            all_tgt_idx.append(hp_idx_chunk)
+            
+            print(f"Successfully processed latitude band {lat_min} to {lat_max}")
+            
+        except Exception as e:
+            print(f"Error processing latitude band {lat_min} to {lat_max}: {e}")
+            # Continue with next chunk instead of failing completely
+    
+    if not all_src_idx:
+        raise ValueError("Failed to compute weights for any chunk")
+    
+    # Combine all chunk results
+    # We need to create a new xarray Dataset with the combined results
+    
+    # Calculate the total number of target points
+    total_targets = sum(len(idx) for idx in all_tgt_idx)
+    
+    # Create arrays to hold the combined data
+    combined_src_idx = np.zeros((total_targets, 3), dtype=np.int64)
+    combined_weights = np.zeros((total_targets, 3), dtype=np.float32)
+    combined_valid = np.zeros(total_targets, dtype=bool)
+    
+    # Fill the arrays with data from each chunk
+    pos = 0
+    for tgt_idx, src_idx, weights, valid in zip(all_tgt_idx, all_src_idx, all_weights, all_valid):
+        n_points = len(tgt_idx)
+        combined_src_idx[pos:pos+n_points] = src_idx
+        combined_weights[pos:pos+n_points] = weights
+        combined_valid[pos:pos+n_points] = valid
+        pos += n_points
+    
+    # Create the final Dataset
+    combined_result = xr.Dataset(
+        data_vars={
+            "src_idx": (("tgt_idx", "tri"), combined_src_idx),
+            "weights": (("tgt_idx", "tri"), combined_weights),
+            "valid": (("tgt_idx",), combined_valid),
+            "tgt_idx": (("tgt_idx",), np.concatenate(all_tgt_idx))
+        }
+    )
+    
+    # Save the calculated weights
+    combined_result.to_netcdf(weights_file)
+    print(f"Weights file written: {weights_file.name}")
+    
+    return combined_result
 
 
 def apply_weights_hp(ds, weights, order, mpas_v_c=None):
@@ -397,10 +601,10 @@ def save_to_zarr(ds, fn, clobber=None):
     store = zarr.storage.LocalStore(fn)
     if fn.exists():
         # If the store exists, append to it
-        ds.chunk({"time": -1, "cell": -1}).to_zarr(store, append_dim='time', consolidated=False) # skip encoding once it is set in zarr
+        ds.chunk({"time": -1, "cell": -1}).to_zarr(store, append_dim='time', consolidated=False, zarr_format=2) # skip encoding once it is set in zarr
     else:
         # For the first write, don't use append_dim
-        ds.chunk({"time": -1, "cell": -1}).to_zarr(store, encoding=get_encoding(ds), consolidated=False)
+        ds.chunk({"time": -1, "cell": -1}).to_zarr(store, encoding=get_encoding(ds), consolidated=False, zarr_format=2)
     print(f'Saved: {str(fn)}')
     # else:
     #     print('Determined not to save to zarr.')

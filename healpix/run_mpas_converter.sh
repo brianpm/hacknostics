@@ -25,7 +25,7 @@ echo "Python version: $(python --version)"
 echo "Conda environment: $CONDA_DEFAULT_ENV"
 
 # Define the variable for the resubmit file
-RESUBMIT_FILE="/glade/derecho/scratch/digital-earths-hackathon/mpas_DYAMOND3/resubmit.txt"
+export RESUBMIT_FILE="/glade/derecho/scratch/digital-earths-hackathon/mpas_DYAMOND3/v2/resubmit.txt"
 
 # Run the script - Make sure python executable from conda env is used
 python convert_mpas_to_healpix_zarr.py
