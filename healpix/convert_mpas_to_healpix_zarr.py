@@ -18,6 +18,18 @@ import dask.array as da
 
 import zarr
 
+import functools
+
+import time
+
+# SET UP LOGGING
+import logging
+
+# Configure logging to stdout
+logging.basicConfig(stream=sys.stdout, level=logging.INFO, 
+                    format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 # notes
 # -----
 # - online sources suggest using healpy intead of healpix? 
@@ -25,22 +37,33 @@ import zarr
 #   + Possibly healpix was added later and built on healpy.
 #   + HEALPix documentation: https://healpix.sourceforge.io/documentation.php
 
-print(f"Python Version: {sys.version}")
-print(f"Numpy {np.__version__}")
-print(f"Xarray {xr.__version__}")
-print(f"Dask {dask.__version__}")
+logger.info(f"Python Version: {sys.version}")
+logger.info(f"Numpy {np.__version__}")
+logger.info(f"Xarray {xr.__version__}")
+logger.info(f"Dask {dask.__version__}")
+logger.info(f"Healpix {hp.__version__}")
+logger.info(f"Zarr {zarr.__version__}")
+logger.info(f"EasyGems doesn't provide a version attribute.")
 
-print(f"Healpix {hp.__version__}")
-print(f"Zarr {zarr.__version__}")
 
-print(f"EasyGems doesn't provide a version attribute.")
+
+def timer(func):
+    """Decorator to logger.info the runtime of a function."""
+    @functools.wraps(func)
+    def wrapper_timer(*args, **kwargs):
+        start = time.perf_counter()
+        result = func(*args, **kwargs)
+        end = time.perf_counter()
+        logger.info(f"[TIMER] {func.__name__!r} executed in {end - start:.4f} seconds")
+        return result
+    return wrapper_timer
 
 
 def main():
 
     # output location
     # oloc = Path("/glade/derecho/scratch/brianpm/healpix")
-    oloc = Path("/glade/derecho/scratch/digital-earths-hackathon/mpas_DYAMOND3/v2")
+    oloc = Path("/glade/derecho/scratch/digital-earths-hackathon/mpas_DYAMOND3/30min")
 
 
     # resubmit file (for pbs)(expecting an environment variable)
@@ -52,7 +75,7 @@ def main():
         # If resubmit doesn't exist, create it with initial value
         with open(resubmit_file, "w") as f:
             f.write("TRUE")
-            print(f"Resubmit file created: {str(resubmit_file)}")
+            logger.info(f"Resubmit file created: {str(resubmit_file)}")
 
     # SET NECESSARY INPUT AND OUTPUT PATHS
 
@@ -66,12 +89,12 @@ def main():
     # datafils = sorted(dataloc.glob("DYAMOND_diag_3h.3.75km.*.nc")) # note: 70GB per file
 
     # 1hr files:
-    datafils = sorted(dataloc.glob("DYAMOND_diag_1h.3.75km.*.nc")) # note: 4.4GB per file
+    # datafils = sorted(dataloc.glob("DYAMOND_diag_1h.3.75km.*.nc")) # note: 4.4GB per file
 
-    print(f"Identified {len(datafils)} files to remap to healpix and save to zarr.")
+    # 30min files:
+    datafils = sorted(dataloc.glob("diag.3.75km.*.nc"))  # note: 11GB per file
 
-    print("TEST TEST TEST -- SHORTEN datafils to 1")
-    datafils = [datafils[0],]
+    logger.info(f"Identified {len(datafils)} files to remap to healpix and save to zarr.")
 
     # mesh description (maybe)
     meshloc = Path("/glade/campaign/mmm/wmr/skamaroc/NSC_2023")
@@ -80,11 +103,11 @@ def main():
     # Set parameters needed for generation weights:
     zoom = order = 10
 
-    weights_file = oloc / f"mpas_to_healpix_weights_order{zoom}_wrap4.nc"
+    weights_file = oloc / f"mpas_to_healpix_weights_order{zoom}_wrap4ez4.nc"
 
-    vert_weights_file = oloc / f"mpas_to_healpix_vertex_weights_order{zoom}_wrap4.nc"
+    vert_weights_file = oloc / f"mpas_to_healpix_vertex_weights_order{zoom}_wrap4ez4.nc"
 
-    out_prefix = "DYAMOND_diag_1h"
+    out_prefix = "DYAMOND_diag_30min"
 
     overwrite_weights = False
 
@@ -102,30 +125,53 @@ def main():
     vlon, vlat = get_mpas_lonlat(ds_static, 'lonVertex', 'latVertex', degrees=True, negative=False, verbose=True, wraparound=False)
 
     # generate or load weights
-    wfunc = get_weights_to_healpix_optimized # otherwise get_weights_to_healpix
-    eweights = wfunc(lon, lat, zoom, weights_file, overwrite=overwrite_weights)
-    evweights = wfunc(vlon, vlat, zoom, vert_weights_file, overwrite=overwrite_weights) # not needed for DYAMOND_diag_3h files
+    # wfunc: [get_weights_to_healpix, get_weights_to_healpix_optimized]
+    wfunc = get_weights_to_healpix_optimized
+    wopts = {"overwrite":overwrite_weights} # "optimized"
+    # wopts = {"overwrite":overwrite_weights, "wraparound":True} # "ez"
+    eweights = wfunc(lon, lat, zoom, weights_file, **wopts)
+    evweights = wfunc(vlon, vlat, zoom, vert_weights_file, **wopts) # not needed for DYAMOND_diag_3h files
 
     for i, fil in enumerate(datafils):
         if str(fil) in processed_files:
-            print(f"Skipping already processed file: {fil.name}")
+            logger.info(f"Skipping already processed file: {fil.name}")
             continue
         
-        print(f"Processing file {i+1}/{len(datafils)}: {fil.name}")
+        logger.info(f"Processing file {i+1}/{len(datafils)}: {fil.name}")
+
         data = pre_proc_mpas_file(fil, ds_static)
+
+        if hasattr(data, "compute"):
+            load_start_time = time.perf_counter()
+            data = data.compute()
+            load_end_time = time.perf_counter()
+            logging.info(f"[TIMER (1)] DATA LOADING TIME: {load_end_time - load_start_time} seconds.")
+
         dsout = remap_mpas_to_hp(data, eweights, evweights, order)
 
-        # save highest resolution output
-        # fn = oloc / f"{out_prefix}_to_hp{order}.zarr"
+        if hasattr(dsout, "compute"):
+            load_start_time = time.perf_counter()
+            dsout = dsout.compute()
+            load_end_time = time.perf_counter()
+            logging.info(f"[TIMER (2)] DATA LOADING TIME: {load_end_time - load_start_time} seconds.")
+
+        # ..............................
+        # save highest resolution output 
+        # APPEND INTO ONE ZARR
+        fn = oloc / f"{out_prefix}_to_hp{order}.zarr"
+
         # WRITE INDIVIDUAL ZARR FOR EACH FILE:
-        fn = oloc / f"{fil.stem}_to_hp{order}.zarr"
+        # fn = oloc / f"{fil.stem}_to_hp{order}.zarr"
+        # ..............................
+
         save_to_zarr(dsout, fn, clobber=overwrite_zarr)
 
         # now coarsen and save zarr
-        # mpas_hp_to_zarr(dsout, order, oloc, out_prefix, clobber=overwrite_zarr)
-
         # INDIVIDUAL FILES:
-        mpas_hp_to_zarr(dsout, order, oloc, fil.stem, clobber=overwrite_zarr)
+        # APPEND
+        mpas_hp_to_zarr(dsout, order, oloc, out_prefix, clobber=overwrite_zarr)
+        # INDIVIDUAL
+        # mpas_hp_to_zarr(dsout, order, oloc, fil.stem, clobber=overwrite_zarr)
 
         # Mark as processed only if everything succeeded
         mark_file_as_processed(fil, tracking_file)
@@ -148,12 +194,13 @@ def main():
     if len(tracked_files) == len(datafils):
         with open(resubmit_file, 'w') as f:
             f.write("FALSE")
-        print("All files processed. Resubmit set to FALSE.")
+        logger.info("All files processed. Resubmit set to FALSE.")
     else:
-        print("Not all files processed. Resubmit set to TRUE.")
+        logger.info("Not all files processed. Resubmit set to TRUE.")
 
+@timer
 def pre_proc_mpas_file(datafil, meshfil):
-    ds_mpas = xr.open_dataset(datafil, engine='netcdf4',  chunks={'Time': 'auto'})
+    ds_mpas = xr.open_dataset(datafil, engine='netcdf4', mask_and_scale=True, chunks={'Time': 'auto'})
     if isinstance(meshfil, xr.Dataset):
         ds_static = meshfil
     elif isinstance(meshfil, Path):
@@ -161,26 +208,56 @@ def pre_proc_mpas_file(datafil, meshfil):
     else:
         raise ValueError("meshfil needs to be a dataset or a path")
 
+    # Use a fixed reference date for all files
+    ref_date = '2000-01-01 00:00:00'  # Or any other suitable fixed date
+
     # Clean and convert xtime strings
     time_str = ds_mpas.xtime.astype(str).values.astype('U').ravel()
     # Remove extra whitespace and handle empty strings
     time_str = [x.strip() for x in time_str]
     time_str = [x.replace("_", " ") for x in time_str]
-
+    if isinstance(time_str, np.ndarray) or isinstance(time_str, list):
+        time_str = "".join(time_str)
     # Convert to datetime
     # change coordinate (and index) from "Time" to "time"
     time_coord = pd.to_datetime(time_str)
 
-    ds_mpas_new = ds_mpas.assign_coords(time=('Time', time_coord))
+    # Calculate hours since reference date for the coordinate values
+    hours_since = (time_coord - pd.Timestamp(ref_date)) / pd.Timedelta('1h')
+    if isinstance(hours_since, xr.DataArray):
+        hours_since = hours_since.values
+    elif isinstance(hours_since, float):
+        hours_since = np.array([hours_since,])
+
+    # Create time coordinate with specific encoding
+    time_var = xr.DataArray(
+        hours_since,
+        dims='Time',
+        name='time',
+        attrs={'long_name': 'time', 
+               'axis': 'T',
+               'reference_date': ref_date},
+               )
+    time_var.encoding = {
+        'dtype': 'float64',
+        'units': f'hours since {ref_date}',
+        'calendar': 'standard',
+        '_FillValue': None
+    }
+    
+    ds_mpas_new = ds_mpas.assign_coords(time=('Time', hours_since))
     
     ds_mpas_new = ds_mpas_new.swap_dims({"Time":"time"})
 
     # Find variables with dtype 'S64'
     s64_vars = [var for var in ds_mpas_new.variables if ds_mpas_new[var].dtype == 'S64']
-    print(f"Variables with S64 dtype: {s64_vars}")
+    logger.info(f"Variables with S64 dtype: {s64_vars}")
 
     # Drop these variables from the dataset
     ds_mpas_clean = ds_mpas_new.drop_vars(s64_vars)
+
+    # Explicitly drop xtime and xtime_old if they are present:
+    ds_mpas_clean = ds_mpas_clean.drop_vars(['xtime', 'xtime_old'], errors='ignore')
 
     return ds_mpas_clean
 
@@ -210,11 +287,11 @@ def remove_directory(inpath):
         path = inpath
     if path.exists():
         shutil.rmtree(path)
-        print(f"Removed directory: {path}")
+        logger.info(f"Removed directory: {path}")
     else:
-        print(f"Directory not found: {path}")
+        logger.info(f"Directory not found: {path}")
 
-
+@timer
 def get_mpas_lonlat(ds, lonname, latname, degrees=True, negative=True, verbose=False, wraparound=True):
     '''Get latitude and longitude from MPAS "static" file,
        convert to degrees (default),
@@ -234,24 +311,24 @@ def get_mpas_lonlat(ds, lonname, latname, degrees=True, negative=True, verbose=F
         Assumes unit is degrees, and the conversion is based on minimum longitude value being < 0 or maximum > 180
         Does not "roll" the coordinate (i.e. change the order of the longitudes)
     verbose : bool
-        if true print stuff
+        if true logger.info stuff
     '''
     lonrad = ds[lonname]
     latrad = ds[latname]
     if verbose:
-        print(f"Sizes: {lonrad.shape = }, {latrad.shape = } -- Compare with {ds['nCells'].shape}")
-        print(f"[initial] Lat min/max: {latrad.min().item()}, {latrad.max().item()}, Lon min/max: {lonrad.min().item()},{lonrad.max().item()}")
+        logger.info(f"Sizes: {lonrad.shape = }, {latrad.shape = } -- Compare with {ds['nCells'].shape}")
+        logger.info(f"[initial] Lat min/max: {latrad.min().item()}, {latrad.max().item()}, Lon min/max: {lonrad.min().item()},{lonrad.max().item()}")
     
     if degrees:
         # lon and lat are in radians
-        lon = np.rad2deg(lonrad) 
+        lon = np.rad2deg(lonrad)
         lat = np.rad2deg(latrad)
     else:
         lon = lonrad
         lat = latrad
 
     if verbose:
-        print(f"[degrees] Lat min/max: {lat.min().item()}, {lat.max().item()}, Lon min/max: {lon.min().item()},{lon.max().item()}")
+        logger.info(f"[degrees] Lat min/max: {lat.min().item()}, {lat.max().item()}, Lon min/max: {lon.min().item()},{lon.max().item()}")
 
     if negative:
         if lon.max().item() >= 180:
@@ -279,11 +356,11 @@ def get_mpas_lonlat(ds, lonname, latname, degrees=True, negative=True, verbose=F
         result = (lon, lat, lon_wrap, lat_wrap)            
 
     if verbose:
-        print(f"[final] Lat min/max: {lat.min().item()}, {lat.max().item()}, Lon min/max: {lon.min().item()},{lon.max().item()}")
+        logger.info(f"[final] Lat min/max: {lat.min().item()}, {lat.max().item()}, Lon min/max: {lon.min().item()},{lon.max().item()}")
     return result
 
-
-def get_weights_to_healpix(lon, lat, order, weights_file, overwrite=None):
+@timer
+def get_weights_to_healpix(lon, lat, order, weights_file, overwrite=None, wraparound=False):
     # nside determines the resolution of the map, generally a power of 2
     # zoom & order are just the exponent:
     # nside = 2**(zoom)
@@ -298,18 +375,20 @@ def get_weights_to_healpix(lon, lat, order, weights_file, overwrite=None):
         if overwrite:
             write = True
             weights_file.unlink()
-            print("Overwrite existing file.")
+            logger.info("Overwrite existing file.")
     else:
         write = True
 
     latlon = True
 
-    print(f"The number of pixels is {npix}, based on {nside} = 2**{zoom}. WRITE: {write}. LATLON: {latlon}")
+    logger.info(f"The number of pixels is {npix}, based on {nside} = 2**{zoom}. WRITE: {write}. LATLON: {latlon}")
 
     if write:
         # gets the longitude and latitude of each
         # latlon: If True, input angles are assumed to be longitude and latitude in degree, otherwise, they are co-latitude and longitude in radians.
         hp_lon, hp_lat = hp.pix2ang(nside=nside, ipix=np.arange(npix), lonlat=latlon, nest=True)
+
+        logger.info(f"[get_weights_to_healpix] hp_lon min/max: {hp_lon.min()}, {hp_lon.max()}")
 
         # # WE NEED TO SHIFT LONGITUDE TO [-180,180] CONVENTION
         # # Probably only if source does??
@@ -318,28 +397,31 @@ def get_weights_to_healpix(lon, lat, order, weights_file, overwrite=None):
         #     hp_lon += 360 / (4 * nside) / 4  # shift quarter-width  ##???????##
         #     # source lon shift already applied using get_mpas_lonlat
         # else:
-        #     print(f"Will not modify hp_lon. Min/Max: {hp_lon.min().item()}, {hp_lon.max().item()} Size: {hp_lon.shape}")
+        #     logger.info(f"Will not modify hp_lon. Min/Max: {hp_lon.min().item()}, {hp_lon.max().item()} Size: {hp_lon.shape}")
 
-        # Ensure lon is periodic by stacking 3 copies:
-        lon_periodic = np.hstack((lon - 360, lon, lon + 360))
-        lat_periodic = np.hstack((lat, lat, lat))
+        if wraparound:
+            # Ensure lon is periodic by stacking 3 copies:
+            lon_periodic = np.hstack((lon-360, lon))
+            lat_periodic = np.hstack((lat, lat))
 
-        # easygems weight generation
-        # If latlon=True above, then we probably want source in degrees
-        eweights = egr.compute_weights_delaunay((lon_periodic, lat_periodic),(hp_lon, hp_lat))
-        # Remap the source indices back to their valid range
-        eweights = eweights.assign(src_idx=eweights.src_idx % lat.size)
+            # easygems weight generation
+            # If latlon=True above, then we probably want source in degrees
+            eweights = egr.compute_weights_delaunay((lon_periodic, lat_periodic),(hp_lon, hp_lat))
+            # Remap the source indices back to their valid range
+            eweights = eweights.assign(src_idx=eweights.src_idx % lat.size)
+        else:
+            eweights = egr.compute_weights_delaunay((lon, lat),(hp_lon, hp_lat))
 
         # save the calculated weights for future use    
         eweights.to_netcdf(weights_file)
-        print(f"Weights file written: {weights_file.name}")
+        logger.info(f"Weights file written: {weights_file.name}")
         return eweights
     else:
         return xr.open_dataset(weights_file)
 
     # NOTE: write=True takes a while: ~9min
 
-
+@timer
 def get_weights_to_healpix_optimized(lon, lat, order, weights_file, overwrite=None):
     # Convert input arrays to float32 if they aren't already
     lon = lon.astype(np.float32)
@@ -356,19 +438,28 @@ def get_weights_to_healpix_optimized(lon, lat, order, weights_file, overwrite=No
         if overwrite:
             write = True
             weights_file.unlink()
-            print("Overwrite existing file.")
+            logger.info("Overwrite existing file.")
     else:
         write = True
     
     latlon = True
-    print(f"The number of pixels is {npix}, based on {nside} = 2**{zoom}. WRITE: {write}. LATLON: {latlon}")
+    logger.info(f"The number of pixels is {npix}, based on {nside} = 2**{zoom}. WRITE: {write}. LATLON: {latlon}")
     
     if not write:
         return xr.open_dataset(weights_file)
     
     # Get HEALPix grid points
     hp_lon, hp_lat = hp.pix2ang(nside=nside, ipix=np.arange(npix), lonlat=latlon, nest=True)
-    
+
+    # Verify HEALPix coordinate ordering
+    logger.info("Diagnosing HEALPix coordinates:")
+    logger.info(f"HEALPix longitude range: {hp_lon.min():.2f} to {hp_lon.max():.2f}")
+    logger.info(f"HEALPix latitude range: {hp_lat.min():.2f} to {hp_lat.max():.2f}")
+    # Check if coordinates follow expected pattern
+    pixel_coords = np.column_stack([hp_lon, hp_lat])
+    logger.info(f"First few pixel coordinates:\n{pixel_coords[:5]}")
+    logger.info(f"Last few pixel coordinates:\n{pixel_coords[-5:]}")
+
     # Process in chunks based on latitude bands
     chunk_size = 10  # degrees of latitude per chunk
     lat_chunks = np.arange(-90, 91, chunk_size)
@@ -395,7 +486,13 @@ def get_weights_to_healpix_optimized(lon, lat, order, weights_file, overwrite=No
         # Add a buffer zone
         buffer = 2.0  # degrees
         mask_src = (lat >= lat_min - buffer) & (lat <= lat_max + buffer)
-        
+
+        # Add extra points near prime meridian
+        # healpix grids think longitude goes to -45, so go that far
+        prime_meridian_buffer = 45.0  # degrees
+        near_prime = (lon <= prime_meridian_buffer) | (lon >= 360 - prime_meridian_buffer)
+        mask_src = mask_src | (near_prime & (lat >= lat_min - buffer) & (lat <= lat_max + buffer))
+
         if not np.any(mask_src):
             continue
             
@@ -404,7 +501,8 @@ def get_weights_to_healpix_optimized(lon, lat, order, weights_file, overwrite=No
         src_idx_chunk = np.arange(len(lat))[mask_src]
         
         # Handle periodicity only for points near the boundaries
-        lon_buffer = 5.0  # degrees
+        # (I think to get this to work for HEALPix, longitude needs to go to -45)
+        lon_buffer = 45.0  # degrees
         near_0 = src_lon_chunk <= lon_buffer
         near_360 = src_lon_chunk >= (360 - lon_buffer)
         
@@ -428,10 +526,10 @@ def get_weights_to_healpix_optimized(lon, lat, order, weights_file, overwrite=No
             src_idx_chunk[near_0]
         ))
         
-        print(f"Processing latitude band {lat_min} to {lat_max}")
-        print(f"Target points: {len(hp_lon_chunk)}")
-        print(f"Source points in band: {len(src_lon_chunk)}")
-        print(f"Total periodic points: {len(lon_periodic)}")
+        logger.info(f"Processing latitude band {lat_min} to {lat_max}")
+        logger.info(f"Target points: {len(hp_lon_chunk)}")
+        logger.info(f"Source points in band: {len(src_lon_chunk)}")
+        logger.info(f"Total periodic points: {len(lon_periodic)}")
         
         try:
             # Compute weights for this chunk
@@ -439,7 +537,14 @@ def get_weights_to_healpix_optimized(lon, lat, order, weights_file, overwrite=No
                 (lon_periodic, lat_periodic),
                 (hp_lon_chunk, hp_lat_chunk)
             )
-            
+            # Check for gaps in coverage
+            if np.any(~chunk_result.valid.values):
+                invalid_points = np.where(~chunk_result.valid.values)[0]
+                logger.info(f"Warning: {len(invalid_points)} invalid points in latitude band {lat_min} to {lat_max}")
+                logger.info(f"Invalid point coordinates:")
+                logger.info(f"Lon: {hp_lon_chunk[invalid_points]}")
+                logger.info(f"Lat: {hp_lat_chunk[invalid_points]}")
+                
             # Remap the source indices to the original dataset
             # Get the src_idx array with shape (tgt_idx, tri)
             src_indices = chunk_result.src_idx.values
@@ -454,10 +559,10 @@ def get_weights_to_healpix_optimized(lon, lat, order, weights_file, overwrite=No
             all_valid.append(chunk_result.valid.values)
             all_tgt_idx.append(hp_idx_chunk)
             
-            print(f"Successfully processed latitude band {lat_min} to {lat_max}")
+            logger.info(f"Successfully processed latitude band {lat_min} to {lat_max}")
             
         except Exception as e:
-            print(f"Error processing latitude band {lat_min} to {lat_max}: {e}")
+            logger.info(f"Error processing latitude band {lat_min} to {lat_max}: {e}")
             # Continue with next chunk instead of failing completely
     
     if not all_src_idx:
@@ -482,36 +587,62 @@ def get_weights_to_healpix_optimized(lon, lat, order, weights_file, overwrite=No
         combined_weights[pos:pos+n_points] = weights
         combined_valid[pos:pos+n_points] = valid
         pos += n_points
-    
-    # Create the final Dataset
+
+    # After combining chunks, sort by target index to restore HEALPix ordering
+    sort_idx = np.argsort(np.concatenate(all_tgt_idx))
+
+    # Create the final Dataset with sorted indices
     combined_result = xr.Dataset(
         data_vars={
-            "src_idx": (("tgt_idx", "tri"), combined_src_idx),
-            "weights": (("tgt_idx", "tri"), combined_weights),
-            "valid": (("tgt_idx",), combined_valid),
-            "tgt_idx": (("tgt_idx",), np.concatenate(all_tgt_idx))
+            "src_idx": (("tgt_idx", "tri"), combined_src_idx[sort_idx]),
+            "weights": (("tgt_idx", "tri"), combined_weights[sort_idx]),
+            "valid": (("tgt_idx",), combined_valid[sort_idx]),
+            "tgt_idx": (("tgt_idx",), np.arange(npix))  # Use sequential indices
         }
     )
-    
+
+    # Add HEALPix metadata
+    combined_result.attrs.update({
+        "healpix_ordering": "NEST",
+        "nside": nside,
+        "order": order,
+        "npix": npix
+    })
+
+    logger.info("Diagnosing target index ordering:")
+    logger.info(f"Target indices min/max: {combined_result.tgt_idx.min().item()}, {combined_result.tgt_idx.max().item()}")
+    logger.info(f"Number of unique target indices: {len(np.unique(combined_result.tgt_idx))}")
+    logger.info(f"Expected number of pixels: {npix}")
+    # Check if indices are monotonic
+    is_monotonic = np.all(np.diff(combined_result.tgt_idx) >= 0)
+    logger.info(f"Target indices are monotonic: {is_monotonic}")
+
     # Save the calculated weights
     combined_result.to_netcdf(weights_file)
-    print(f"Weights file written: {weights_file.name}")
+    logger.info(f"Weights file written: {weights_file.name}")
     
     return combined_result
 
-
+@timer
 def apply_weights_hp(ds, weights, order, mpas_v_c=None):
     """remap to healpix using easygems generated weights
     
     ds and weights should be consistent
     mpas_v_c determines if using "nCell" or "nVertices" variables
     """
+
+    logger.debug("Diagnosing weight application:")
+    logger.debug(f"Weight target indices shape: {weights.tgt_idx.shape}")
+    logger.debug(f"Weight source indices shape: {weights.src_idx.shape}")
+    logger.debug(f"Number of unique target pixels: {len(np.unique(weights.tgt_idx))}")
+
     assert (mpas_v_c in ["center", "vertex"]), f"mpas_v_c must be center or vertex, got {mpas_v_c}"
     # repeat:
     zoom = order
     nside = hp.order2nside(order)
     npix = hp.nside2npix(nside)
-
+    if not np.array_equal(weights.tgt_idx, np.arange(npix)):
+        raise ValueError("Weight target indices are not in proper HEALPix order")
     vertices_vars = []
     center_vars = []
     vars_to_drop = None
@@ -544,11 +675,12 @@ def apply_weights_hp(ds, weights, order, mpas_v_c=None):
         dask="parallelized",
         dask_gufunc_kwargs={
             "output_sizes": {"cell": npix},
+             "allow_rechunk":True
         },
     )
     return mpas_remap
 
-
+@timer
 def remap_mpas_to_hp(ds, cell_weights, vertex_weights, zoom):
     c_vars = apply_weights_hp(ds, cell_weights, zoom, mpas_v_c="center")
     v_vars = apply_weights_hp(ds, vertex_weights, zoom, mpas_v_c="vertex")
@@ -567,49 +699,83 @@ def remap_mpas_to_hp(ds, cell_weights, vertex_weights, zoom):
     return mrg
 
 # Write to ZARR
-
 def get_dtype(da):
-    if np.issubdtype(da.dtype, np.floating):
-        return "float32"
+    """Determine appropriate dtype for zarr encoding"""
+    if da.dtype == 'float64':
+        return 'float32'
+    elif da.dtype == 'int64':
+        return 'int32'
     else:
         return da.dtype
 
 def get_encoding(dataset):
-    return {
+    encodings = {
         var: {
-            # "compressor": get_compressor(),
             "dtype": get_dtype(dataset[var]),
-            # "chunks": get_chunks(dataset[var].dims),
         }
         for var in dataset.variables
         if var not in dataset.dims
-    }
+    }    
+    # Add specific encoding for time coordinate
+    if 'time' in dataset.coords:
+        encodings['time'] = {
+            'dtype': 'float64',
+            '_FillValue': None,
+            # Store units and calendar as attributes instead of encoding
+            'compressor': None  # Disable compression for coordinate
+        }
+        # Set the units and calendar as attributes
+        dataset['time'].attrs.update({
+            'units': 'hours since 2000-01-01 00:00:00',
+            'calendar': 'standard'
+        })
+    return encodings
 
-
+@timer
 def save_to_zarr(ds, fn, clobber=None):
+    chunks = {dim: -1 for dim in ds.dims}
+    chunks['time'] = 8
+    chunks['cell'] = 262144
+    ds = ds.chunk(chunks)
     if fn.exists():
         if clobber:
-            print(f"{fn} exists... remove")
-            # do_save = True
+            logger.info(f"{fn} exists... remove")
             remove_directory(fn)
+            # Create new store with encoding
+            store = zarr.storage.LocalStore(fn)
+            encoding = get_encoding(ds)
+            ds.to_zarr(
+                store, 
+                encoding=encoding, 
+                consolidated=True, 
+                zarr_format=2
+            )
         else:
-            print(f"{fn} exists... coarsen and append along time")
-            # do_save = False
-    # else:
-    #     do_save = True
-    # if do_save:
-    store = zarr.storage.LocalStore(fn)
-    if fn.exists():
-        # If the store exists, append to it
-        ds.chunk({"time": -1, "cell": -1}).to_zarr(store, append_dim='time', consolidated=False, zarr_format=2) # skip encoding once it is set in zarr
+            logger.info(f"{fn} exists... appending...")
+            # When appending, don't provide encoding
+            store = zarr.storage.LocalStore(fn)
+            ds.to_zarr(
+                store,
+                append_dim='time',
+                consolidated=True,
+                zarr_format=2
+            )
     else:
-        # For the first write, don't use append_dim
-        ds.chunk({"time": -1, "cell": -1}).to_zarr(store, encoding=get_encoding(ds), consolidated=False, zarr_format=2)
-    print(f'Saved: {str(fn)}')
-    # else:
-    #     print('Determined not to save to zarr.')
+        # For the first write, include encoding
+        store = zarr.storage.LocalStore(fn)
+        encoding = get_encoding(ds)
+        ds.to_zarr(
+            store,
+            encoding=encoding,
+            consolidated=True,
+            zarr_format=2
+        )    
 
+    logger.info(f'Saved: {str(fn)}')
+    # Consolidate metadata after writing
+    zarr.consolidate_metadata(str(fn))
 
+@timer
 def mpas_hp_to_zarr(ds, zoom, outloc, zarr_name_prefix, clobber=None):
     """Save to zarr at zoom and lower resolutions
     
@@ -625,12 +791,22 @@ def mpas_hp_to_zarr(ds, zoom, outloc, zarr_name_prefix, clobber=None):
 
         # coarsen by one level
         dx = dn.coarsen(cell=4).mean()
+
+        # update the CRS info
+        dx["crs"] = xr.DataArray(name="crs",data=0,
+          attrs={
+            "grid_mapping_name": "healpix",
+            "healpix_nside": 2**x,
+            "healpix_order": "nest",
+          },
+        )
+
         save_to_zarr(dx, fn, clobber=clobber)
         # iterate
         dn = dx.copy()
-    print("[mpas_hp_to_zarr] complete.")
+    logger.info("[mpas_hp_to_zarr] complete.")
 
-
+@timer
 def mpas_to_hp_zarr(data, grid_data, order, c_weights, v_weights, out_dir, zarr_prefix, clobber_wgts=None, clobber_zarr=None):
     # cell-center
     lon, lat = get_mpas_lonlat(grid_data, 'lonCell', 'latCell', degrees=True, negative=True, verbose=True)
@@ -656,4 +832,8 @@ def mpas_to_hp_zarr(data, grid_data, order, c_weights, v_weights, out_dir, zarr_
 
 
 if __name__ == "__main__":
+    start_time = time.perf_counter()
     main()
+    end_time = time.perf_counter()
+    elapsed_time = end_time - start_time
+    logger.info(f"Elapsed time: {elapsed_time:.4f} seconds")
