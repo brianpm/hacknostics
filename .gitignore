@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# job output logs
+*.o[0-9]*
+
 # C extensions
 *.so
 
