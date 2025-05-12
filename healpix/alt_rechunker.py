@@ -11,6 +11,22 @@ def copy_attributes(source, target):
     for key, value in source.attrs.items():
         target.attrs[key] = value
 
+
+def infer_dimensions(name, shape):
+    """Helper function to infer dimensions from variable name and shape."""
+    if len(shape) == 2:  # Most of our variables are (time, cell)
+        return ['time', 'cell']
+    elif len(shape) == 1:
+        if name == 'time':
+            return ['time']
+        elif name == 'cell':
+            return ['cell']
+        else:
+            return [f'{name}_dim0']
+    else:
+        return [f'{name}_dim{i}' for i in range(len(shape))]
+
+
 def rechunk_zarr_archive(source_path, target_path, chunk_sizes=None):
     """
     Rechunk a zarr archive with proper attribute preservation.
@@ -192,21 +208,202 @@ def rechunk_zarr_archive(source_path, target_path, chunk_sizes=None):
     zarr.consolidate_metadata(target_path)
     print(f"Rechunking complete. New zarr archive saved to: {target_path}")
 
-if __name__ == "__main__":
-    source_zarr_path = '/glade/derecho/scratch/digital-earths-hackathon/mpas_DYAMOND3/v4/DYAMOND_diag_1h_to_hp10.zarr'
-    new_zarr_path = '/glade/derecho/scratch/digital-earths-hackathon/mpas_DYAMOND3/1hr/DYAMOND_diag_1h_to_hp10.zarr'
+
+def combine_and_rechunk_zarrs(source_paths, target_path, dim_chunks=None):
+    """
+    Combine multiple Zarr archives along the time dimension and rechunk them.
     
-    # Define custom chunking for specific variables if needed
-    # This is an example - adjust based on your data
-    chunk_sizes = {
-        # Format: 'variable_name': (chunks_dim1, chunks_dim2, ...)
-        # For 1D variables (usually time)
-        'time': (48,),
-        # For 2D variables (time, cell)
-        'PRECT': (48, 262144),
-        'PS': (48, 262144),
-        # Add more as needed
+    Parameters:
+    -----------
+    source_paths : list
+        List of paths to source Zarr archives
+    target_path : str
+        Path to create the new combined and rechunked Zarr archive
+    dim_chunks : dict, optional
+        Dictionary mapping dimension names to their chunk sizes.
+        Example: {'time': 36, 'cell': 48}
+    """
+    print(f"Processing {len(source_paths)} Zarr archives...")
+    print(f"Source paths: {[str(p) for p in source_paths]}")  # Add this line
+
+    # Default dimension chunks if none provided
+    if dim_chunks is None:
+        dim_chunks = {'time': 36, 'cell': 48}
+    
+    print(f"Processing {len(source_paths)} Zarr archives...")
+    
+    # Open first source to get metadata and structure
+    first_source = zarr.open(source_paths[0], mode='r')
+    print(f"\nVariables in first source: {list(first_source.keys())}")
+
+    # Create target directory and zarr group
+    Path(target_path).mkdir(parents=True, exist_ok=True)
+    target = zarr.open(target_path, mode='w', zarr_version=2)
+    
+    # Process each variable
+    for name in first_source:
+        print(f"\nProcessing variable: {name}")
+        if not (hasattr(first_source[name], 'shape') and hasattr(first_source[name], 'dtype')):
+            print(f"  Skipping {name} - not an array")
+            continue
+            
+        source_array = first_source[name]
+        print(f"  Shape: {source_array.shape}, Dtype: {source_array.dtype}, Chunks: {source_array.chunks}")
+        dims = source_array.attrs.get('_ARRAY_DIMENSIONS', None)
+        print(f"  Dimensions: {dims}")
+        if dims is None:
+            dims = infer_dimensions(name, source_array.shape)
+            print(f"  No dimensions found, inferring: {dims}")
+        print(f"  Dimensions: {dims}")
+        # Determine chunks based on dimensions
+        chunks = []
+        for dim in dims:
+            if dim in dim_chunks:
+                chunks.append(dim_chunks[dim])
+                print(f"  Using specified chunk size for {dim}: {dim_chunks[dim]}")
+            else:
+                # Use source chunking for dimensions not specified
+                dim_index = dims.index(dim)
+                chunks.append(source_array.chunks[dim_index])
+                print(f"  Using source chunk size for {dim}: {source_array.chunks[dim_index]}")
+        # Skip if not a time-dependent variable
+        if dims is None or 'time' not in dims:
+            print(f"Copying non-time variable: {name}")
+            # Create array first, then write data
+            target_array = target.create_array(
+                name,
+                shape=source_array.shape,
+                chunks=source_array.chunks,
+                dtype=source_array.dtype,
+                compressor=Blosc(cname='zstd', clevel=3, shuffle=2),
+                fill_value=source_array.fill_value if hasattr(source_array, 'fill_value') else None
+            )
+            target_array[:] = source_array[:]  # Write data after creation
+            copy_attributes(source_array, target_array)
+            continue
+        
+        # Calculate combined shape
+        time_axis = dims.index('time')
+        combined_shape = list(source_array.shape)
+        combined_shape[time_axis] = 0
+        
+        # Calculate total time steps
+        for src_path in source_paths:
+            src = zarr.open(str(src_path), mode='r')
+            combined_shape[time_axis] += src[name].shape[time_axis]
+        
+        print(f"Creating combined array: {name}")
+        print(f"  Shape: {combined_shape}")
+        print(f"  Chunks: {chunks}")
+        
+        # Create target array
+        target_array = target.create_array(
+            name,
+            shape=combined_shape,
+            chunks=tuple(chunks),
+            dtype=source_array.dtype,
+            compressor=Blosc(cname='zstd', clevel=3, shuffle=2),
+            fill_value=source_array.fill_value if hasattr(source_array, 'fill_value') else None
+        )
+        
+        # Copy attributes
+        copy_attributes(source_array, target_array)
+            
+        # In the data copying section:
+        time_offset = 0
+        for src_path in source_paths:
+            src = zarr.open(str(src_path), mode='r')  # Convert Path to string
+            src_array = src[name]
+            time_slice = slice(time_offset, time_offset + src_array.shape[time_axis])
+            
+            # Create index tuple for proper dimension handling
+            idx = [slice(None)] * len(combined_shape)
+            idx[time_axis] = time_slice
+            
+            print(f"  Copying data from {src_path}")
+            print(f"    Current time_offset: {time_offset}")
+            print(f"    Array shape: {src_array.shape}")
+            print(f"    Writing to slice: {idx}")
+            
+            # Add try-except to catch any writing errors
+            try:
+                target_array[tuple(idx)] = src_array[:]
+                print(f"    Successfully wrote data chunk")
+            except Exception as e:
+                print(f"    Error writing data: {e}")
+                raise
+                
+            time_offset += src_array.shape[time_axis]
+            print(f"    New time_offset: {time_offset}")
+
+        print(f"Finished processing variable {name}")
+    
+    # Consolidate metadata
+    print("Consolidating metadata...")
+    zarr.consolidate_metadata(target_path)
+    print(f"Combining and rechunking complete. New zarr archive saved to: {target_path}")
+
+
+
+
+
+
+# # Example usage in __main__:
+if __name__ == "__main__":
+    src_loc = Path("/glade/derecho/scratch/digital-earths-hackathon/mpas_DYAMOND3/3hr")
+    src_zarr = sorted(src_loc.glob("DYAMOND_diag_3h.3.75km.*_to_hp1.zarr"))
+    
+    print(f"Found {len(src_zarr)} source Zarr archives")
+    for path in src_zarr:
+        print(f"  {path}")
+        # # Verify each source exists and is readable
+        # try:
+        #     z = zarr.open(str(path), mode='r')
+        #     print(f"    Variables: {list(z.keys())}")
+        # except Exception as e:
+        #     print(f"    Error opening: {e}")
+    
+    tgt_zarr_loc = Path("/glade/campaign/cgd/cas/brianpm/hack25/rechunk")
+    tgt_zarr_prefix = "DYAMOND_diag_3h_to_hp1_rechunk"
+    new_zarr_path = tgt_zarr_loc / f"{tgt_zarr_prefix}.zarr"
+    
+    print(f"\nTarget path: {new_zarr_path}")
+    
+    dim_chunks = {
+        'time': 36,
+        'cell': 48
     }
     
-    # Run the rechunking process
-    rechunk_zarr_archive(source_zarr_path, new_zarr_path)
+    print(f"\nUsing dimension chunks: {dim_chunks}")
+    
+    combine_and_rechunk_zarrs(src_zarr, new_zarr_path, dim_chunks)
+    # Verify the result
+    print("\nVerifying target Zarr:")
+    try:
+        result = zarr.open(str(new_zarr_path), mode='r')
+        print(f"Variables in result: {list(result.keys())}")
+        for name in result:
+            if hasattr(result[name], 'shape'):
+                print(f"  {name}: shape={result[name].shape}, chunks={result[name].chunks}")
+    except Exception as e:
+        print(f"Error verifying result: {e}")
+
+# if __name__ == "__main__":
+
+#     source_zarr_path = '/glade/derecho/scratch/digital-earths-hackathon/mpas_DYAMOND3/v4/DYAMOND_diag_1h_to_hp10.zarr'
+#     new_zarr_path = '/glade/derecho/scratch/digital-earths-hackathon/mpas_DYAMOND3/1hr/DYAMOND_diag_1h_to_hp10.zarr'
+    
+#     # Define custom chunking for specific variables if needed
+#     # This is an example - adjust based on your data
+#     chunk_sizes = {
+#         # Format: 'variable_name': (chunks_dim1, chunks_dim2, ...)
+#         # For 1D variables (usually time)
+#         'time': (48,),
+#         # For 2D variables (time, cell)
+#         'PRECT': (48, 262144),
+#         'PS': (48, 262144),
+#         # Add more as needed
+#     }
+    
+#     # Run the rechunking process
+#     rechunk_zarr_archive(source_zarr_path, new_zarr_path)

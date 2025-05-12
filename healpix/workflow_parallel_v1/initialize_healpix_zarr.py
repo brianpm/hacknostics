@@ -471,7 +471,7 @@ def pre_proc_mpas_file(datafil):
         time_var.encoding = {
             'dtype': 'float64',
             'units': f'hours since {ref_date}',
-            'calendar': time_calendar,
+            'calendar': 'time_calendar',
             '_FillValue': None
         }    
 
@@ -486,7 +486,7 @@ def pre_proc_mpas_file(datafil):
         # might need to figure out units for encoding (?)
         time_var.encoding = {
             'dtype': 'float64',
-            'calendar': time_calendar,
+            'calendar': 'time_calendar',
             '_FillValue': None
         }
         ds_mpas_new =  ds_mpas.assign_coords(time=time_var)
