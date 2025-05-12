@@ -1,8 +1,8 @@
 #!/bin/bash
-#PBS -N rechunker
+#PBS -N rechunk9
 #PBS -A P93300042
-#PBS -l walltime=04:00:00
-#PBS -l select=1:ncpus=16:mem=256GB
+#PBS -l walltime=8:00:00
+#PBS -l select=1:ncpus=16:mem=300GB
 #PBS -q casper
 #PBS -j oe
 #PBS -k eod
@@ -26,4 +26,5 @@ python simpler_rechunker_v1.py \
     --fix-time \
     --time-start "2020-01-20 00:00:00" \
     --time-end "2020-03-01 00:00:00" \
-    --time-freq 15min
+    --time-freq 15min \
+    --resume

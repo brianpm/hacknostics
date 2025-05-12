@@ -114,7 +114,9 @@ def rechunk_zarr_flexible(input_path: str,
     """
     try:
         if os.path.exists(output_path):
-            if overwrite_output and not resume:
+            if resume:
+                print(f"Resuming processing with existing output at: {output_path}")
+            elif overwrite_output:
                 print(f"Warning: Output path '{output_path}' already exists and will be overwritten.")
                 try:
                     shutil.rmtree(output_path)
@@ -122,12 +124,10 @@ def rechunk_zarr_flexible(input_path: str,
                 except OSError as e:
                     print(f"Error removing directory {output_path}: {e}")
                     return
-            elif not resume:
-                print(f"Error: Output path '{output_path}' already exists. "
-                    f"Set overwrite_output=True to replace it or resume=True to continue processing.")
-                return
             else:
-                print(f"Resuming processing with existing output at: {output_path}")
+                print(f"Error: Output path '{output_path}' already exists. "
+                    f"Use --overwrite to replace or --resume to continue processing.")
+                return
 
         # Configure dask based on system memory
         available_memory = get_available_memory()
@@ -150,20 +150,6 @@ def rechunk_zarr_flexible(input_path: str,
         if not os.path.exists(input_path):
             print(f"Error: Input path '{input_path}' does not exist.")
             return
-
-        if os.path.exists(output_path):
-            if overwrite_output:
-                print(f"Warning: Output path '{output_path}' already exists and will be overwritten.")
-                try:
-                    shutil.rmtree(output_path)
-                    print(f"Successfully removed existing directory: {output_path}")
-                except OSError as e:
-                    print(f"Error removing directory {output_path}: {e}")
-                    return
-            else:
-                print(f"Error: Output path '{output_path}' already exists. "
-                    f"Set overwrite_output=True to replace it.")
-                return
 
         ds_original = None  # Initialize to ensure it's defined for the finally block
 
@@ -334,7 +320,9 @@ def rechunk_zarr_flexible(input_path: str,
             # Create the output store if it doesn't exist
             if not os.path.exists(output_path):
                 store = zarr.open(output_path, mode='w')
-            
+            elif resume:
+                store = zarr.open(output_path, mode='a')
+
             # Process variables in batches
             total_batches = (len(all_vars) + batch_size - 1) // batch_size
             start_time = time.time()
@@ -391,7 +379,7 @@ def rechunk_zarr_flexible(input_path: str,
                         })     
                 # Write this batch - note we're writing directly to the path
                 print(f"Writing batch {i//batch_size + 1} of {(len(all_vars) + batch_size - 1)//batch_size}")
-                if i == 0:
+                if i == 0 and not resume:
                     mode = 'w'  # First batch - create new store
                 else:
                     mode = 'a'  # Subsequent batches - append
@@ -500,7 +488,8 @@ if __name__ == "__main__":
         target_chunks_map=desired_chunks,
         overwrite_output=args.overwrite,
         fix_time=args.fix_time,
-        time_config=time_config
+        time_config=time_config,
+        resume=args.resume
     )
     # Number of cell for each zoom:
     # zoom 1 : cell 48
