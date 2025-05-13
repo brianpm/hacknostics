@@ -35,8 +35,9 @@ def create_manifest(file_pattern, manifest_path, mpas_time_dim, check_files=Fals
                         'time_offset_start': current_time_offset
                     })
                     current_time_offset += num_times_in_file
+                # note: could also have elif here to only look at 1st file.
             else:
-                num_times_in_file = 1 ## HARD_CODED_VALUE!!!!!
+                num_times_in_file = 1 ## HARD_CODED_VALUE!!!!! (Could be parameter)
                 manifest_data.append({                        
                         'filepath': os.path.abspath(nc_file), # Store absolute path
                         'num_timesteps': num_times_in_file,
@@ -45,11 +46,10 @@ def create_manifest(file_pattern, manifest_path, mpas_time_dim, check_files=Fals
                 current_time_offset += num_times_in_file
         except Exception as e:
             print(f"Could not process file {nc_file}: {e}. Skipping.")
-            # Decide if you want to raise error or continue
-            continue
+            continue # or raise error
 
     if not manifest_data:
-        print("No data successfully processed for the manifest.")
+        print("WARNING: No data for the manifest.")
         return
 
     df = pd.DataFrame(manifest_data)
