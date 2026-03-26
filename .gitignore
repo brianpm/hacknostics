@@ -6,6 +6,9 @@ __pycache__/
 # job output logs
 *.o[0-9]*
 
+# ESMF runtime artifacts
+PET*.ESMF_LogFile
+
 # C extensions
 *.so
 
