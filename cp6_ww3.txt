@@ -1,0 +1,47 @@
+cp6 analysis: ww3
+Files scanned: 38
+
+===========================================================================
+FILE PATH                                                         | COUNT
+---------------------------------------------------------------------------
+...rk/brianpm/cesm_release/components/ww3/src/source/w3src3md.f90 | 146
+...rk/brianpm/cesm_release/components/ww3/src/source/w3arrymd.f90 | 145
+...rk/brianpm/cesm_release/components/ww3/src/source/w3pro3md.f90 | 61
+...rk/brianpm/cesm_release/components/ww3/src/source/w3iogomd.f90 | 56
+...rk/brianpm/cesm_release/components/ww3/src/source/w3fldsmd.f90 | 42
+...rk/brianpm/cesm_release/components/ww3/src/source/w3updtmd.f90 | 42
+...rk/brianpm/cesm_release/components/ww3/src/source/w3uqckmd.f90 | 38
+...rk/brianpm/cesm_release/components/ww3/src/source/w3cspcmd.f90 | 20
+...rk/brianpm/cesm_release/components/ww3/src/source/w3iosfmd.f90 | 18
+...rk/brianpm/cesm_release/components/ww3/src/source/w3initmd.f90 | 17
+...rk/brianpm/cesm_release/components/ww3/src/source/w3iorsmd.f90 | 16
+...rk/brianpm/cesm_release/components/ww3/src/source/w3partmd.f90 | 16
+...rk/brianpm/cesm_release/components/ww3/src/source/w3iopomd.f90 | 14
+...rk/brianpm/cesm_release/components/ww3/src/source/w3timemd.f90 | 14
+...rk/brianpm/cesm_release/components/ww3/src/source/w3srcemd.f90 | 12
+...rk/brianpm/cesm_release/components/ww3/src/source/w3wavemd.f90 | 12
+...rk/brianpm/cesm_release/components/ww3/src/source/w3iogrmd.f90 | 11
+...brianpm/cesm_release/components/ww3/src/source/w3constants.f90 | 8
+...rk/brianpm/cesm_release/components/ww3/src/source/w3dispmd.f90 | 8
+...rk/brianpm/cesm_release/components/ww3/src/source/w3iotrmd.f90 | 8
+...rk/brianpm/cesm_release/components/ww3/src/source/w3servmd.f90 | 6
+...rk/brianpm/cesm_release/components/ww3/src/source/w3gdatmd.f90 | 5
+...rk/brianpm/cesm_release/components/ww3/src/source/w3sdb1md.f90 | 5
+...ianpm/cesm_release/components/ww3/src/cpl_mct/wav_comp_mct.F90 | 4
+...rk/brianpm/cesm_release/components/ww3/src/source/w3iobcmd.f90 | 4
+...rk/brianpm/cesm_release/components/ww3/src/source/w3adatmd.f90 | 3
+...rk/brianpm/cesm_release/components/ww3/src/source/w3odatmd.f90 | 3
+...rk/brianpm/cesm_release/components/ww3/src/source/w3snl1md.f90 | 3
+...esm_release/components/ww3/src/cpl_nuopc/wav_import_export.F90 | 2
+.../cesm_release/components/ww3/src/cpl_nuopc/wav_shr_methods.F90 | 2
+...rk/brianpm/cesm_release/components/ww3/src/source/w3sbt1md.f90 | 2
+...rk/brianpm/cesm_release/components/ww3/src/source/w3sln1md.f90 | 2
+...rk/brianpm/cesm_release/components/ww3/src/source/w3wdatmd.f90 | 1
+...pm/cesm_release/components/ww3/src/cpl_mct/ww3_cpl_indices.f90 | 0
+...m/cesm_release/components/ww3/src/cpl_nuopc/wav_comp_nuopc.F90 | 0
+...rk/brianpm/cesm_release/components/ww3/src/source/w3cesmmd.f90 | 0
+...rk/brianpm/cesm_release/components/ww3/src/source/w3idatmd.f90 | 0
+...rk/brianpm/cesm_release/components/ww3/src/source/w3wdasmd.f90 | 0
+---------------------------------------------------------------------------
+TOTAL INSTANCES (non-trivial floats in code, excl. comments): 746
+===========================================================================

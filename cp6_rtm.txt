@@ -1,0 +1,26 @@
+cp6 analysis: rtm
+Files scanned: 17
+
+===========================================================================
+FILE PATH                                                         | COUNT
+---------------------------------------------------------------------------
+.../brianpm/cesm_release/components/rtm/src/riverroute/RtmMod.F90 | 40
+...npm/cesm_release/components/rtm/src/riverroute/RtmHistFile.F90 | 16
+...ianpm/cesm_release/components/rtm/src/cpl/mct/rof_comp_mct.F90 | 7
+.../cesm_release/components/rtm/src/cpl/mct/rof_import_export.F90 | 7
+...esm_release/components/rtm/src/cpl/nuopc/rof_import_export.F90 | 7
+...m/cesm_release/components/rtm/src/cpl/nuopc/rof_comp_nuopc.F90 | 4
+...npm/cesm_release/components/rtm/src/riverroute/RtmRestFile.F90 | 4
+.../brianpm/cesm_release/components/rtm/src/riverroute/RtmVar.F90 | 3
+...k/brianpm/cesm_release/components/rtm/src/riverroute/RtmIO.F90 | 1
+.../cesm_release/components/rtm/src/riverroute/RtmTimeManager.F90 | 1
+...pm/cesm_release/components/rtm/src/cpl/mct/rtm_cpl_indices.F90 | 0
+...npm/cesm_release/components/rtm/src/riverroute/RtmDateTime.F90 | 0
+...pm/cesm_release/components/rtm/src/riverroute/RtmFileUtils.F90 | 0
+.../cesm_release/components/rtm/src/riverroute/RtmFinalizeAll.F90 | 0
+...npm/cesm_release/components/rtm/src/riverroute/RtmHistFlds.F90 | 0
+...brianpm/cesm_release/components/rtm/src/riverroute/RtmSpmd.F90 | 0
+...ianpm/cesm_release/components/rtm/src/riverroute/RunoffMod.F90 | 0
+---------------------------------------------------------------------------
+TOTAL INSTANCES (non-trivial floats in code, excl. comments): 90
+===========================================================================

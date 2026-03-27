@@ -1,0 +1,26 @@
+cp6 analysis: mosart
+Files scanned: 17
+
+===========================================================================
+FILE PATH                                                         | COUNT
+---------------------------------------------------------------------------
+...ianpm/cesm_release/components/mosart/src/riverroute/RtmMod.F90 | 60
+.../cesm_release/components/mosart/src/riverroute/RtmHistFile.F90 | 16
+...release/components/mosart/src/cpl/mct/mosart_import_export.F90 | 13
+..._release/components/mosart/src/cpl/nuopc/rof_import_export.F90 | 9
+...elease/components/mosart/src/riverroute/MOSART_physics_mod.F90 | 9
+...pm/cesm_release/components/mosart/src/cpl/mct/rof_comp_mct.F90 | 7
+.../cesm_release/components/mosart/src/riverroute/RtmRestFile.F90 | 7
+...esm_release/components/mosart/src/cpl/nuopc/rof_comp_nuopc.F90 | 4
+...ianpm/cesm_release/components/mosart/src/riverroute/RtmVar.F90 | 3
+...rianpm/cesm_release/components/mosart/src/riverroute/RtmIO.F90 | 1
+...sm_release/components/mosart/src/riverroute/RtmTimeManager.F90 | 1
+...m_release/components/mosart/src/cpl/mct/mosart_cpl_indices.F90 | 0
+.../cesm_release/components/mosart/src/riverroute/RtmDateTime.F90 | 0
+...cesm_release/components/mosart/src/riverroute/RtmFileUtils.F90 | 0
+.../cesm_release/components/mosart/src/riverroute/RtmHistFlds.F90 | 0
+...anpm/cesm_release/components/mosart/src/riverroute/RtmSpmd.F90 | 0
+...pm/cesm_release/components/mosart/src/riverroute/RunoffMod.F90 | 0
+---------------------------------------------------------------------------
+TOTAL INSTANCES (non-trivial floats in code, excl. comments): 130
+===========================================================================
