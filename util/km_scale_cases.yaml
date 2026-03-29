@@ -1,0 +1,142 @@
+# Mapping of km-scale CESM cases to their MPAS grid/mesh files.
+# Archive root: /glade/campaign/cesm/km-scale/archive
+# Grid files root: /glade/campaign/cesm/cesmdata/inputdata/share/meshes/
+#
+# Grid resolution is determined by ncol (number of columns) in the history files:
+#   ncol = 40,962     → mpasa120 (~120 km)
+#   ncol = 41,943,042 → mpasa3.75 (~3.75 km)
+#
+# Cases with "lr" in the name are low-resolution (120 km) test/sensitivity runs.
+# All other cases use the full 3.75 km production grid.
+#
+# survey_stream:   history stream containing TGCLDIWP (used by the storm survey)
+# snapshot_stream: history stream containing CLDLIQ, CLDICE, Z3, T (used for curtain plot)
+#
+# Low-res cases  → survey_stream: h0a  (daily 2D)   snapshot_stream: h1i (3-hourly 3D)
+# High-res cases → survey_stream: h1i  (30-min 2D)  snapshot_stream: h0i (30-min 3D)
+
+archive: /glade/campaign/cesm/km-scale/archive
+grid_files_root: /glade/campaign/cesm/cesmdata/inputdata/share/meshes
+
+# Named grid file entries for reuse
+grids:
+  mpasa3p75:
+    filename: mpasa3.75_ESMFmesh-20210803.nc
+    resolution_km: 3.75
+    ncol: 41943042
+  mpasa120:
+    filename: mpasa120z32_ESMFmesh_cdf5_c20210120.nc
+    resolution_km: 120
+    ncol: 40962
+
+# Per-case grid assignments
+# ncol verified from ncdump of history files; inferred where noted.
+cases:
+
+  # --- Low-resolution (120 km) sensitivity runs ---
+  c124_dyamond1_lr_clubbmf:
+    grid: mpasa120
+    ncol: 40962
+    survey_stream: h0a    # daily 2D; has TGCLDIWP
+    snapshot_stream: h1i  # 3-hourly 3D; has CLDLIQ, CLDICE, Z3, T
+    verified: true
+
+  c124_dyamond1_lr_clubbmf-wsubmid:
+    grid: mpasa120
+    ncol: 40962
+    survey_stream: h0a
+    snapshot_stream: h1i
+    verified: false  # inferred from "lr" naming pattern
+
+  c124_dyamond1_lr_dcshi:
+    grid: mpasa120
+    ncol: 40962
+    survey_stream: h0a
+    snapshot_stream: h1i
+    verified: false  # inferred from "lr" naming pattern
+
+  c124_dyamond1_lr_dcslo:
+    grid: mpasa120
+    ncol: 40962
+    survey_stream: h0a
+    snapshot_stream: h1i
+    verified: false  # inferred from "lr" naming pattern
+
+  c124_dyamond1_lr_dcsmid:
+    grid: mpasa120
+    ncol: 40962
+    survey_stream: h0a
+    snapshot_stream: h1i
+    verified: false  # inferred from "lr" naming pattern
+
+  c124_dyamond1_lr_hisubsteps:
+    grid: mpasa120
+    ncol: 40962
+    survey_stream: h0a
+    snapshot_stream: h1i
+    verified: true
+
+  # --- Full-resolution (3.75 km) c124 runs ---
+  c124_dyamond1_prod2:
+    grid: mpasa3p75
+    ncol: 41943042
+    survey_stream: h1i    # 30-min 2D; has TGCLDIWP
+    snapshot_stream: h0i  # 30-min 3D; has CLDLIQ, CLDICE, Z3, T
+    verified: true
+
+  c124_ecomip-p1-aerosol_clubbmf:
+    grid: mpasa3p75
+    ncol: 41943042
+    survey_stream: h1i
+    snapshot_stream: h0i
+    verified: true
+
+  c124_ecomip-p1-aerosol_clubbmf.002:
+    grid: mpasa3p75
+    ncol: 41943042
+    survey_stream: h1i
+    snapshot_stream: h0i
+    verified: false  # inferred from sibling case
+
+  c124_ecomip-p1-aerosol_nodeep:
+    grid: mpasa3p75
+    ncol: 41943042
+    survey_stream: h1i
+    snapshot_stream: h0i
+    verified: true
+
+  c124_ecomip-p1-golden_clubbmf:
+    grid: mpasa3p75
+    ncol: 41943042
+    survey_stream: h1i
+    snapshot_stream: h0i
+    verified: true
+
+  c124_ecomip-p1-golden_clubbmf.002:
+    grid: mpasa3p75
+    ncol: 41943042
+    survey_stream: h1i    # 30-min 2D; has TGCLDIWP (confirmed from archive)
+    snapshot_stream: h0i  # 30-min 3D; has CLDLIQ, CLDICE, Z3, T (confirmed from archive)
+    verified: true  # ncol=41943042 confirmed; streams confirmed 2026-03-27
+
+  c124_ecomip-p1-golden_nodeep:
+    grid: mpasa3p75
+    ncol: 41943042
+    survey_stream: h1i
+    snapshot_stream: h0i
+    verified: false  # inferred from sibling case
+
+  # --- High-resolution (3.75 km) cam77 production runs ---
+  cam77_dyamond1_prod1:
+    grid: mpasa3p75
+    ncol: 41943042
+    survey_stream: h1i
+    snapshot_stream: h0i
+    verified: true
+
+  cam77_dyamond2_prod1:
+    grid: mpasa3p75
+    ncol: 41943042
+    survey_stream: h1i
+    snapshot_stream: h0i
+    verified: true
